@@ -617,20 +617,78 @@
             
             init() {
                 this.resizeCanvas();
-                
-                // Event listeners
+
+                // Keyboard input
                 document.addEventListener('keydown', (e) => this.handleInput(e));
+
+                // Touch/mouse input
+                this.crtCanvas.addEventListener('click', (e) => this.handleTap(e));
+                this.crtCanvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    this.handleTap(touch);
+                });
+
                 window.addEventListener('resize', () => this.resizeCanvas());
-                
-                // Update URL with current seed
+
                 this.updateURL();
-                
-                // Start game loop
                 this.gameLoop();
-                
-                // Display seed in console for sharing
+
                 console.log(`Game seed: ${this.seed}`);
                 console.log(`Share this game: ${window.location.origin}${window.location.pathname}?seed=${this.seed}`);
+            }
+
+            handleTap(pos) {
+                const rect = this.crtCanvas.getBoundingClientRect();
+                const x = (pos.clientX - rect.left) / this.scale;
+                const y = (pos.clientY - rect.top) / this.scale;
+
+                this.startAudio();
+
+                if (this.gameMode === "start") {
+                    // Anywhere tap starts a new game
+                    this.startNewGame();
+                    return;
+                }
+
+                if (this.gameMode === "gameover") {
+                    // Rough zones: upper half = Start, lower half = Restart
+                    const centerY = this.height / 2;
+                    if (y < centerY + 80) {
+                        this.startNewGame();
+                    } else {
+                        this.restart();
+                    }
+                    return;
+                }
+
+                if (this.gameMode !== "play") return;
+
+                // Gameplay taps
+                if (x < this.width / 2) {
+                    this.handleVirtualKey("1");
+                } else {
+                    this.handleVirtualKey("0");
+                }
+            }
+
+            handleVirtualKey(key) {
+                for (const strain of this.strains) {
+                    if (strain.destroyTimer > 0) continue;
+
+                    const currentDigit = strain.digits[strain.highlight];
+                    if (key === currentDigit.value) {
+                        strain.highlight--;
+                        this.playSound('splish');
+                        this.createSuccessEffect(strain.x, strain.getHighlightY());
+
+                        if (strain.highlight < 0) {
+                            this.scoreUp(strain);
+                        }
+                    } else {
+                        strain.reset();
+                    }
+                }
             }
             
             updateURL() {
