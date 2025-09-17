@@ -1,0 +1,27 @@
+<!--?xml version="1.0" encoding="UTF-8"?-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 1000 1000" role="img" aria-label="0RA1N logo">
+  <style>
+    /* load local font file (place MonomaniacOne-Regular.ttf in same folder as this SVG) */
+    @font-face {
+      font-family: "MonomaniacOne";
+      src: url("MonomaniacOne-Regular.ttf") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    .digit {
+      font-family: "MonomaniacOne", "Monomaniac One", monospace;
+      font-size: 820px;        /* adjusts visual size within viewBox */
+      font-weight: 400;
+      fill: #00FFFF;           /* pure cyan */
+      text-anchor: middle;
+      dominant-baseline: middle;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+
+  <!-- Centered '0' -->
+  <text class="digit" x="50%" y="50%">0</text>
+</svg>

@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
     <title>0RA1N</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Monomaniac+One&display=swap');
@@ -93,6 +95,12 @@
                 this.TOTAL_RAINDROPS = 120;
                 this.BASE_DIGIT_SIZE = 40;
                 this.DIGIT_ALPHA = 0.35;
+
+                // Colors
+                this.colorTitle = 'gray';
+                this.colorStart = 'cyan';
+                this.colorSeed = 'rgba(255, 255, 0, 0.7)';
+                this.colorScore = 'yellow';
                 
                 // Scale factor for responsive sizing
                 this.scale = 1;
@@ -885,7 +893,7 @@
                     }
                     if (x > -1) {
                         this.strains.push(new Strain(x, this.STRAIN_MIN_SIZE, this.STRAIN_MAX_SIZE, 
-                                                   this.MIN_BASE_SPEED, this.MAX_BASE_SPEED, this.digitSize, this.scale, this.rng));
+                        this.MIN_BASE_SPEED, this.MAX_BASE_SPEED, this.digitSize, this.scale, this.rng));
                     } else {
                         break;
                     }
@@ -944,10 +952,10 @@
                 // Render UI elements on canvas
                 
                 // Score (WHITE)
-                this.drawText(this.score.toString(), this.width - 20, this.height - 80, 'white', 48, 'right');
+                this.drawText(this.score.toString(), this.width - 20, this.height - 60, this.colorScore, 48, 'right');
                 
                 // Seed info (top right) - YELLOW
-                this.drawText(`Seed: ${this.seed}`, this.width - 10, 10, 'rgba(255, 255, 0, 0.5)', 12, 'right');
+                this.drawText(`Seed: ${this.seed}`, this.width - 10, 10, this.colorSeed, 12, 'right');
                 
                 // Start screen
                 if (this.gameMode === "start") {
@@ -956,13 +964,13 @@
                     this.gameCtx.fillRect(0, 0, this.width, this.height);
                     
                     // 0RA1N title - WHITE
-                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, 'white', 72, 'center');
+                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, this.colorTitle, 72, 'center');
                     
                     // Start instruction - YELLOW
-                    this.drawText('[S] - Start', this.width / 2, this.height / 2, 'red', 32, 'center');
+                    this.drawText('[S]tart', this.width / 2, this.height / 2, this.colorStart, 32, 'center');
                     
                     // Seed info - YELLOW
-                    this.drawText(`Seed: ${this.seed}`, this.width / 2, this.height / 2 + 60, 'rgba(255, 255, 0, 0.7)', 16, 'center');
+                    this.drawText(`Seed: ${this.seed}`, this.width / 2, this.height / 2 + 60, this.colorSeed, 16, 'center');
                 }
                 
                 // Game over screen
@@ -972,17 +980,14 @@
                     this.gameCtx.fillRect(0, 0, this.width, this.height);
                     
                     // 0RA1N title - WHITE
-                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 100, 'white', 96, 'center');
-                    
-                    // Final score - YELLOW
-                    this.drawText(`Final Score: ${this.score}`, this.width / 2, this.height / 2, 'yellow', 32, 'center');
-                    
+                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 100, this.colorTitle, 96, 'center');
+
                     // Restart instructions - YELLOW
-                    this.drawText('[S] - Start', this.width / 2, this.height / 2 + 60, 'white', 24, 'center');
-                    this.drawText('[R] - Restart with seed', this.width / 2, this.height / 2 + 100, 'white', 24, 'center');
+                    this.drawText('[S]tart', this.width / 2, this.height / 2, this.colorStart, 24, 'center');
+                    this.drawText('[R]eseed Start', this.width / 2, this.height / 2 + 60, this.colorStart, 24, 'center');
                     
                     // Seed sharing info - YELLOW
-                    this.drawText(`Seed: ${this.seed}`, this.width / 2, this.height / 2 + 140, 'rgba(255, 255, 255, 0.7)', 16, 'center');
+                    this.drawText(`Seed: ${this.seed}`, this.width / 2, this.height / 2 + 140, this.colorSeed, 16, 'center');
                 }
                 
                 // Render CRT effect
@@ -1147,6 +1152,14 @@
         
         // Start the game
         const game = new BinaryRainGame();
+
+        if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker.register("service-worker.js")
+            .then((reg) => console.log("Service worker registered:", reg.scope))
+            .catch((err) => console.error("Service worker failed:", err));
+        });
+        }
     </script>
 </body>
 </html>
