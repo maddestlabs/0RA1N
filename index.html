@@ -28,7 +28,7 @@
         }
         
         #gameCanvas {
-            display: none; /* Hidden, used for game rendering */
+            display: none;
         }
         
         #crtCanvas {
@@ -64,8 +64,6 @@
 
         class BinaryRainGame {
             constructor() {
-                // for performance on iOS, render at lower resolution
-                this.INTERNAL_SCALE = /iPad|iPhone|iPod/.test(navigator.userAgent) ? 0.5 : 1.0;
                 this.audioStarted = false;
                 this.gameCanvas = document.getElementById('gameCanvas');
                 this.gameCtx = this.gameCanvas.getContext('2d');
@@ -101,7 +99,7 @@
                 // Colors
                 this.colorTitle = 'gray';
                 this.colorStart = 'cyan';
-                this.colorSeed = 'cyan';
+                this.colorSeed = 'rgba(255, 255, 0, 0.7)';
                 this.colorScore = 'yellow';
                 
                 // Scale factor for responsive sizing
@@ -193,7 +191,7 @@
                         vec2 iResolution = u_resolution;
                         
                         // Default CRT parameters
-                        float grilleLvl = 0.85;
+                        float grilleLvl = 0.95;
                         float grilleDensity = 800.0;
                         float scanlineLvl = 0.8;
                         float scanlines = 1.0;
@@ -500,6 +498,8 @@
                 gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.gameCanvas);
 
+                //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.gameCanvas);
+
                 gl.useProgram(this.shaderProgram);
 
                 // Update uniforms
@@ -732,18 +732,8 @@
                 this.digitSize = this.BASE_DIGIT_SIZE * this.scale;
                 
                 // Resize game canvas
-                //this.gameCanvas.width = this.width;
-                //this.gameCanvas.height = this.height;
-
-                // If on mobile ...
-                this.gameCanvas.width = Math.floor(this.width * this.INTERNAL_SCALE);
-                this.gameCanvas.height = Math.floor(this.height * this.INTERNAL_SCALE);
-                this.gameCtx.setTransform(
-                this.INTERNAL_SCALE, 0,
-                0, this.INTERNAL_SCALE,
-                0, 0
-                );
-
+                this.gameCanvas.width = this.width;
+                this.gameCanvas.height = this.height;
                 
                 // Resize CRT canvas
                 this.crtCanvas.width = this.width;
