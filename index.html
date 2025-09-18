@@ -642,6 +642,10 @@
                     const touch = e.touches[0];
                     this.handleTap(touch);
                 });
+                // Prevent scrolling on iOS especially
+                this.crtCanvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                });
 
                 window.addEventListener('resize', () => this.resizeCanvas());
 
