@@ -85,22 +85,28 @@
                 this.rng = new SeededRandom(this.seed);
                 
                 // Game constants
-                this.BASE_WIDTH = 540;
-                this.BASE_HEIGHT = 960;
+                this.BASE_WIDTH = 1080;
+                this.BASE_HEIGHT = 2400;
                 this.STRAIN_MIN_SIZE = 3;
                 this.STRAIN_MAX_SIZE = 6;
-                this.MIN_BASE_SPEED = 40;
-                this.MAX_BASE_SPEED = 80;
+                this.MIN_BASE_SPEED = 100;
+                this.MAX_BASE_SPEED = 160;
                 this.TOTAL_STRAINS = 20;
                 this.TOTAL_RAINDROPS = 120;
-                this.BASE_DIGIT_SIZE = 40;
+                this.BASE_DIGIT_SIZE = 80;
                 this.DIGIT_ALPHA = 0.35;
 
                 // Colors
                 this.colorTitle = 'gray';
                 this.colorStart = 'cyan';
-                this.colorSeed = 'rgba(255, 255, 0, 0.7)';
+                this.colorSeed = 'cyan';
                 this.colorScore = 'yellow';
+
+                // Text sizes
+                this.sizeTitle = 200;
+                this.sizeMenu = 80;
+                this.sizeSeed = 80;
+                this.sizeScore = 80;
                 
                 // Scale factor for responsive sizing
                 this.scale = 1;
@@ -713,7 +719,6 @@
                 this.gameMode = "play";
                 this.score = 0;
                 this.strains = [];
-                this.raindrops = [];
                 this.explosions = [];
                 console.log(`New game seed: ${this.seed}`);
             }
@@ -829,6 +834,8 @@
             
             createSuccessEffect(x, y) {
                 // Create a small visual effect for successful key press
+                // exclude iOS devices due to performance issues
+                if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return;
                 this.explosions.push(new Explosion(x, y, '+1'));
             }
             
@@ -851,7 +858,6 @@
                 this.gameMode = "play";
                 this.score = 0;
                 this.strains = [];
-                this.raindrops = [];
                 this.explosions = [];
                 this.startGameMusic();
             }
@@ -860,12 +866,23 @@
                 this.gameMode = "gameover";
                 this.stopGameMusic();
                 this.playSound('gameover');
+                // Start destruction animation for all strains
+                for (const strain of this.strains) {
+                    if (strain.destroyTimer <= 0) {  // Only if not already destroying
+                        strain.destroyTimer = this.DIGIT_ALPHA;  // Same timer value used elsewhere
+                        
+                        // Optional: Create explosion effects without scoring
+                        for (const digit of strain.digits) {
+                            this.explosions.push(new Explosion(digit.x, digit.y, '•'));
+                        }
+                    }
+                }
             }
             
             update(deltaTime) {
                 this.animTime += deltaTime;
                 
-                // Update explosions
+                // Update explosions (always)
                 for (let i = this.explosions.length - 1; i >= 0; i--) {
                     this.explosions[i].update(deltaTime);
                     if (this.explosions[i].alpha <= 0) {
@@ -873,19 +890,34 @@
                     }
                 }
                 
-                // Create raindrops
+                // Update strains (always, for destruction animations)
+                for (let i = this.strains.length - 1; i >= 0; i--) {
+                    const strain = this.strains[i];
+                    strain.update(deltaTime, this.height, this.animTime);
+                    
+                    if (strain.destroyTimer === 0) {
+                        this.strains.splice(i, 1);
+                    } else if (strain.gameover && this.gameMode === "play") {
+                        // Only trigger gameover if we're actually playing
+                        this.gameOver();
+                        return;
+                    }
+                }
+                
+                // Create raindrops (always)
                 while (this.raindrops.length < this.TOTAL_RAINDROPS) {
                     this.raindrops.push(new Raindrop(this.width, this.height, this.digitSize, this.rng));
                 }
                 
-                // Update raindrops
+                // Update raindrops (always)
                 for (const raindrop of this.raindrops) {
                     raindrop.update(deltaTime);
                 }
                 
+                // Early return if not in play mode - everything below is play-only logic
                 if (this.gameMode !== "play") return;
                 
-                // Create new strains
+                // Create new strains (play mode only)
                 while (this.strains.length < this.TOTAL_STRAINS) {
                     let x = this.rng.randInt(0, this.width - this.digitSize);
                     if (this.strains.length > 1) {
@@ -896,19 +928,6 @@
                         this.MIN_BASE_SPEED, this.MAX_BASE_SPEED, this.digitSize, this.scale, this.rng));
                     } else {
                         break;
-                    }
-                }
-                
-                // Update strains
-                for (let i = this.strains.length - 1; i >= 0; i--) {
-                    const strain = this.strains[i];
-                    strain.update(deltaTime, this.height, this.animTime);
-                    
-                    if (strain.destroyTimer === 0) {
-                        this.strains.splice(i, 1);
-                    } else if (strain.gameover) {
-                        this.gameOver();
-                        return;
                     }
                 }
             }
@@ -934,7 +953,7 @@
                 this.gameCtx.fillRect(0, 0, this.width, this.height);
                 
                 // Render raindrops
-                this.gameCtx.fillStyle = 'rgba(255, 255, 0, 0.2)';
+                //this.gameCtx.fillStyle = 'rgba(255, 255, 0, 0.2)';
                 for (const raindrop of this.raindrops) {
                     raindrop.render(this.gameCtx);
                 }
@@ -951,43 +970,25 @@
                 
                 // Render UI elements on canvas
                 
-                // Score (WHITE)
-                this.drawText(this.score.toString(), this.width - 20, this.height - 60, this.colorScore, 48, 'right');
-                
-                // Seed info (top right) - YELLOW
-                this.drawText(`Seed: ${this.seed}`, this.width - 10, 10, this.colorSeed, 12, 'right');
+                // Score
+                this.drawText(this.score.toString(), this.width - 20, this.height - this.sizeScore/2, this.colorScore, this.sizeScore, 'right');
                 
                 // Start screen
-                if (this.gameMode === "start") {
-                    // Semi-transparent overlay
-                    this.gameCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                    this.gameCtx.fillRect(0, 0, this.width, this.height);
+                if (this.gameMode === "start" || this.gameMode === "gameover") {
+                    // 0RA1N title
+                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, this.colorTitle, this.sizeTitle, 'center');
                     
-                    // 0RA1N title - WHITE
-                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, this.colorTitle, 72, 'center');
-                    
-                    // Start instruction - YELLOW
-                    this.drawText('[S]tart', this.width / 2, this.height / 2, this.colorStart, 32, 'center');
-                    
-                    // Seed info - YELLOW
-                    this.drawText(`Seed: ${this.seed}`, this.width / 2, this.height / 2 + 60, this.colorSeed, 16, 'center');
-                }
-                
-                // Game over screen
-                if (this.gameMode === "gameover") {
-                    // Semi-transparent overlay
-                    this.gameCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                    this.gameCtx.fillRect(0, 0, this.width, this.height);
-                    
-                    // 0RA1N title - WHITE
-                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 100, this.colorTitle, 96, 'center');
+                    // Start instruction
+                    let y = this.height / 2;
+                    this.drawText('[S]tart', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
+                    y += this.sizeMenu;
+                    if (this.gameMode === "gameover"){
+                        this.drawText('[R]estart with', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
+                        y += this.sizeMenu / 2;
+                    }
 
-                    // Restart instructions - YELLOW
-                    this.drawText('[S]tart', this.width / 2, this.height / 2, this.colorStart, 24, 'center');
-                    this.drawText('[R]eseed Start', this.width / 2, this.height / 2 + 60, this.colorStart, 24, 'center');
-                    
-                    // Seed sharing info - YELLOW
-                    this.drawText(`Seed: ${this.seed}`, this.width / 2, this.height / 2 + 140, this.colorSeed, 16, 'center');
+                    // Seed info
+                    this.drawText(`Seed: ${this.seed}`, this.width / 2, y, this.colorSeed, this.sizeSeed, 'center');
                 }
                 
                 // Render CRT effect
@@ -1058,34 +1059,31 @@
                 this.highlight = this.strainSize - 1;
             }
             
-            update(deltaTime, windowHeight, globalAnimTime) {
-                this.currentAnim += deltaTime * this.animMultiplier;
-                if (this.currentAnim > this.strainSize) {
-                    this.currentAnim = 0;
-                }
-                
-                if (this.gameover) return;
-                
-                for (let i = 0; i < this.digits.length; i++) {
-                    const digit = this.digits[i];
-                    digit.y += this.speed * deltaTime;
-                    digit.x += (Math.random() - 0.5) * 0.05;
-                    
-                    if (this.destroyTimer > 0) {
-                        digit.y += (Math.random() - 0.5) * 10;
-                        digit.x += (Math.random() - 0.5) * 10;
-                        this.destroyTimer -= 0.0025;
-                        if (this.destroyTimer < 0) {
-                            this.destroyTimer = 0;
-                        }
-                    }
-                    
-                    if (digit.y > windowHeight) {
-                        this.gameover = true;
-                        return;
-                    }
-                }
+update(deltaTime, windowHeight, globalAnimTime) {
+    this.currentAnim += deltaTime * this.animMultiplier;
+    if (this.currentAnim > this.strainSize) {
+        this.currentAnim = 0;
+    }
+    
+    for (let i = 0; i < this.digits.length; i++) {
+        const digit = this.digits[i];
+        digit.y += this.speed * deltaTime;
+        digit.x += (Math.random() - 0.5) * 0.05;
+        
+        if (this.destroyTimer > 0) {
+            digit.y += (Math.random() - 0.5) * 10;
+            digit.x += (Math.random() - 0.5) * 10;
+            this.destroyTimer -= 0.0025;
+            if (this.destroyTimer < 0) {
+                this.destroyTimer = 0;
             }
+        }
+        
+        if (digit.y > windowHeight && !this.gameover) {
+            this.gameover = true;
+        }
+    }
+}
             
             render(ctx) {
                 for (let i = 0; i < this.digits.length; i++) {
@@ -1110,7 +1108,7 @@
             reset() {
                 this.x = this.rng.randFloat(0, this.windowWidth - this.digitSize);
                 this.y = -this.digitSize;
-                this.alpha = this.rng.randFloat(0.025, 0.1);
+                this.alpha = this.rng.randFloat(1, 10);
             }
             
             update(deltaTime) {
@@ -1121,7 +1119,7 @@
             }
             
             render(ctx) {
-                ctx.fillStyle = `rgba(100, 100, 100, ${this.alpha})`;
+                ctx.fillStyle = `rgba(${this.alpha}, ${this.alpha}, ${this.alpha})`;
                 ctx.fillText('•', this.x, this.y);
             }
         }
