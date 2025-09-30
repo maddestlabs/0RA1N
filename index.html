@@ -641,11 +641,11 @@
                     e.preventDefault();
                     const touch = e.touches[0];
                     this.handleTap(touch);
-                });
+                }, { passive: false });
                 // Prevent scrolling on iOS especially
                 this.crtCanvas.addEventListener('touchmove', (e) => {
                     e.preventDefault();
-                });
+                }, { passive: false });
 
                 window.addEventListener('resize', () => this.resizeCanvas());
 
