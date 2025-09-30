@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <title>0RA1N</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Monomaniac+One&display=swap');
+
+    @font-face {
+      font-family: 'MonomaniacOne';
+      src: url('./MonomaniacOne-Regular.ttf') format('truetype');
+      font-display: swap;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'MonomaniacOne', 'Monomaniac One', 'Courier New', monospace;
+      overflow: hidden;
+    }
+
+    #gameCanvas {
+      display: none;
+    }
+
+    #crtCanvas {
+      display: block;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <canvas id="crtCanvas"></canvas>
+
+  <script>
+    // Seeded random number generator
+    class SeededRandom {
+      constructor(seed) {
+        this.seed = seed;
+      }
+      next() {
+        this.seed = (this.seed * 9301 + 49297) % 233280;
+        return this.seed / 233280;
+      }
+      randInt(min, max) {
+        return Math.floor(this.next() * (max - min + 1)) + min;
+      }
+      randFloat(min, max) {
+        return this.next() * (max - min) + min;
+      }
+    }
+
+    // Bitmap font renderer
+    class BitmapFont {
+      constructor(ctx, font, size, chars) {
+        this.glyphs = {};
+        this.size = size;
+
+        const tmpCanvas = document.createElement("canvas");
+        const tmpCtx = tmpCanvas.getContext("2d");
+        tmpCtx.font = `${size}px ${font}`;
+        tmpCtx.textBaseline = "top";
+
+        for (const ch of chars) {
+          const metrics = tmpCtx.measureText(ch);
+          const w = Math.ceil(metrics.width);
+          const h = size;
+          tmpCanvas.width = w;
+          tmpCanvas.height = h;
+
+          tmpCtx.clearRect(0, 0, w, h); // ensure transparency
+          tmpCtx.font = `${size}px ${font}`;
+          tmpCtx.textBaseline = "top";
+          tmpCtx.fillStyle = "white";
+          tmpCtx.fillText(ch, 0, 0);
+
+          const glyphCanvas = document.createElement("canvas");
+          glyphCanvas.width = w;
+          glyphCanvas.height = h;
+          glyphCanvas.getContext("2d").drawImage(tmpCanvas, 0, 0);
+
+          this.glyphs[ch] = glyphCanvas;
+        }
+      }
+
+      draw(ctx, ch, x, y, color) {
+        const g = this.glyphs[ch];
+        if (!g) return;
+        if (color) {
+          ctx.save();
+          ctx.drawImage(g, x, y);
+          ctx.globalCompositeOperation = "source-atop";
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, g.width, g.height);
+          ctx.restore();
+        } else {
+          ctx.drawImage(g, x, y);
+        }
+      }
+
+      drawText(ctx, text, x, y, color, align = "left") {
+        let totalWidth = 0;
+        for (const ch of text) totalWidth += this.glyphs[ch]?.width || this.size;
+
+        if (align === "center") x -= totalWidth / 2;
+        if (align === "right") x -= totalWidth;
+
+        for (const ch of text) {
+          this.draw(ctx, ch, x, y, color);
+          x += this.glyphs[ch]?.width || this.size;
+        }
+      }
+    }
+
+    class BinaryRainGame {
+      constructor() {
+        this.audioStarted = false;
+        this.gameCanvas = document.getElementById('gameCanvas');
+        this.gameCtx = this.gameCanvas.getContext('2d');
+        this.crtCanvas = document.getElementById('crtCanvas');
+
+        // Initialize CRT shader
+        this.initCRTShader();
+
+        // Game constants
+        this.BASE_WIDTH = 1080;
+        this.BASE_HEIGHT = 2400;
+        this.STRAIN_MIN_SIZE = 3;
+        this.STRAIN_MAX_SIZE = 6;
+        this.MIN_BASE_SPEED = 100;
+        this.MAX_BASE_SPEED = 160;
+        this.TOTAL_STRAINS = 20;
+        this.TOTAL_RAINDROPS = 120;
+        this.BASE_DIGIT_SIZE = 80;
+        this.DIGIT_ALPHA = 0.35;
+
+        // Colors
+        this.colorTitle = 'gray';
+        this.colorStart = 'cyan';
+        this.colorSeed = 'cyan';
+        this.colorScore = 'yellow';
+
+        // Text sizes
+        this.sizeTitle = 200;
+        this.sizeMenu = 80;
+        this.sizeSeed = 80;
+        this.sizeScore = 80;
+
+        // Scale factor for responsive sizing
+        this.scale = 1;
+        this.width = this.BASE_WIDTH;
+        this.height = this.BASE_HEIGHT;
+        this.digitSize = this.BASE_DIGIT_SIZE;
+
+        // Preload fonts in multiple sizes
+        const chars = "01•+0123456789SETRadn:".split("");
+        this.fonts = {
+          digit: new BitmapFont(this.gameCtx, '"MonomaniacOne", "Monomaniac One", monospace', this.digitSize, chars),
+          title: new BitmapFont(this.gameCtx, '"MonomaniacOne", "Monomaniac One", monospace', this.sizeTitle, chars),
+          menu: new BitmapFont(this.gameCtx, '"MonomaniacOne", "Monomaniac One", monospace', this.sizeMenu, chars),
+          score: new BitmapFont(this.gameCtx, '"MonomaniacOne", "Monomaniac One", monospace', this.sizeScore, chars),
+          seed: new BitmapFont(this.gameCtx, '"MonomaniacOne", "Monomaniac One", monospace', this.sizeSeed, chars)
+        };
+
+        // Game state
+        this.gameMode = "start";
+        this.score = 0;
+        this.strains = [];
+        this.raindrops = [];
+        this.explosions = [];
+
+        this.lastTime = 0;
+        this.animTime = 0;
+
+        this.init();
+      }
+
+      resizeCanvas() {
+        const windowHeight = window.innerHeight - 20;
+        const windowWidth = window.innerWidth - 20;
+
+        const scaleByHeight = windowHeight / this.BASE_HEIGHT;
+        const scaleByWidth = windowWidth / this.BASE_WIDTH;
+        this.scale = Math.min(scaleByHeight, scaleByWidth);
+
+        this.width = this.BASE_WIDTH * this.scale;
+        this.height = this.BASE_HEIGHT * this.scale;
+        this.digitSize = this.BASE_DIGIT_SIZE * this.scale;
+
+        this.gameCanvas.width = this.width;
+        this.gameCanvas.height = this.height;
+
+        this.crtCanvas.width = this.width;
+        this.crtCanvas.height = this.height;
+      }
+
+      drawText(text, x, y, color, size = null, align = 'left') {
+        let font = this.fonts.digit;
+        if (size === this.sizeTitle) font = this.fonts.title;
+        else if (size === this.sizeMenu) font = this.fonts.menu;
+        else if (size === this.sizeScore) font = this.fonts.score;
+        else if (size === this.sizeSeed) font = this.fonts.seed;
+        font.drawText(this.gameCtx, text, x, y, color, align);
+      }
+
+      render() {
+        // Clear
+        this.gameCtx.fillStyle = 'black';
+        this.gameCtx.fillRect(0, 0, this.width, this.height);
+
+        // Render raindrops
+        for (const raindrop of this.raindrops) {
+          raindrop.render(this.gameCtx, this.fonts.digit);
+        }
+        // Render strains
+        for (const strain of this.strains) {
+          strain.render(this.gameCtx, this.fonts.digit);
+        }
+        // Render explosions
+        for (const explosion of this.explosions) {
+          explosion.render(this.gameCtx, this.fonts.digit);
+        }
+
+        // Score
+        this.drawText(this.score.toString(), this.width - 20, this.height - this.sizeScore/2, this.colorScore, this.sizeScore, 'right');
+
+        // Start screen / Game over
+        if (this.gameMode === "start" || this.gameMode === "gameover") {
+          this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, this.colorTitle, this.sizeTitle, 'center');
+          let y = this.height / 2;
+          this.drawText('[S]tart', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
+          y += this.sizeMenu;
+          if (this.gameMode === "gameover") {
+            this.drawText('[R]estart with', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
+            y += this.sizeMenu / 2;
+          }
+          this.drawText(`Seed: ${this.seed}`, this.width / 2, y, this.colorSeed, this.sizeSeed, 'center');
+        }
+
+        // CRT pass
+        this.renderCRT();
+      }
+    }
+
+    class Strain {
+      constructor(x, minSize, maxSize, minSpeed, maxSpeed, digitSize, scale, rng) {
+        this.x = x;
+        this.speed = (rng.randFloat(minSpeed, maxSpeed)) * scale;
+        this.strainSize = rng.randInt(minSize, maxSize);
+        this.gameover = false;
+        this.destroyTimer = -1;
+        this.digits = [];
+        this.highlight = this.strainSize - 1;
+        this.currentAnim = this.strainSize;
+        this.animMultiplier = rng.randFloat(4, 12);
+
+        for (let i = 0; i < this.strainSize; i++) {
+          this.digits.push({
+            value: rng.next() < 0.5 ? '0' : '1',
+            x: x,
+            y: (i * digitSize) - this.strainSize * digitSize
+          });
+        }
+      }
+
+      render(ctx, font) {
+        for (let i = 0; i < this.digits.length; i++) {
+          const digit = this.digits[i];
+          const alpha = this.destroyTimer > 0 ? this.destroyTimer : 1;
+          ctx.fillStyle = this.getDigitColor(i, alpha);
+          font.draw(ctx, digit.value, digit.x, digit.y, ctx.fillStyle);
+        }
+      }
+    }
+
+    class Raindrop {
+      constructor(windowWidth, windowHeight, digitSize, rng) {
+        this.windowWidth = windowWidth;
+        this.windowHeight = windowHeight;
+        this.digitSize = digitSize;
+        this.speed = rng.randFloat(300, 700);
+        this.rng = rng;
+        this.reset();
+      }
+
+      reset() {
+        this.x = this.rng.randFloat(0, this.windowWidth - this.digitSize);
+        this.y = -this.digitSize;
+        this.alpha = this.rng.randFloat(1, 10);
+      }
+
+      render(ctx, font) {
+        ctx.fillStyle = `rgba(${this.alpha}, ${this.alpha}, ${this.alpha})`;
+        font.draw(ctx, '•', this.x, this.y, ctx.fillStyle);
+      }
+    }
+
+    class Explosion {
+      constructor(x, y, char = '•') {
+        this.x = x;
+        this.y = y;
+        this.char = char;
+        this.alpha = 0.75;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+      }
+
+      render(ctx, font) {
+        if (this.alpha > 0) {
+          ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+          font.draw(ctx, this.char, this.x, this.y, ctx.fillStyle);
+        }
+      }
+    }
+
+    // Start the game
+    const game = new BinaryRainGame();
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("service-worker.js")
+        .then((reg) => console.log("Service worker registered:", reg.scope))
+        .catch((err) => console.error("Service worker failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

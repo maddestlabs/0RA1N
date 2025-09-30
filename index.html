@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -658,19 +659,17 @@
 
             handleTap(pos) {
                 const rect = this.crtCanvas.getBoundingClientRect();
-                const x = (pos.clientX - rect.left) / this.scale;
-                const y = (pos.clientY - rect.top) / this.scale;
+                const x = pos.clientX - rect.left;
+                const y = pos.clientY - rect.top;
 
                 this.startAudio();
 
                 if (this.gameMode === "start") {
-                    // Anywhere tap starts a new game
                     this.startNewGame();
                     return;
                 }
 
                 if (this.gameMode === "gameover") {
-                    // Rough zones: upper half = Start, lower half = Restart
                     const centerY = this.height / 2;
                     if (y < centerY + 80) {
                         this.startNewGame();
@@ -682,7 +681,6 @@
 
                 if (this.gameMode !== "play") return;
 
-                // Gameplay taps
                 if (x < this.width / 2) {
                     this.handleVirtualKey("1");
                 } else {
