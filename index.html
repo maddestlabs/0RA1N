@@ -1114,7 +1114,8 @@
             reset() {
                 this.x = this.rng.randFloat(0, this.windowWidth - this.digitSize);
                 this.y = -this.digitSize;
-                this.i = this.rng.randFloat(1, 10);
+                this.i = this.rng.randFloat(1, 14);
+                this.size = this.rng.randFloat(2, 5);
             }
             
             update(deltaTime) {
@@ -1125,8 +1126,10 @@
             }
             
             render(ctx) {
-                ctx.fillStyle = `rgb(${this.i}, ${this.i}, ${this.i})`;
-                ctx.fillText('•', this.x, this.y);
+                if (this.i > 0) {
+                    ctx.fillStyle = `rgb(${this.i}, ${this.i}, ${this.i})`;
+                    ctx.fillRect(this.x, this.y, this.size, this.size);
+                }
             }
         }
         
