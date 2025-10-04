@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -71,6 +71,8 @@
                 this.gameCanvas = document.getElementById('gameCanvas');
                 this.gameCtx = this.gameCanvas.getContext('2d');
                 this.crtCanvas = document.getElementById('crtCanvas');
+
+                this.isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent));
                 
                 // Initialize CRT shader
                 this.initCRTShader();
@@ -639,7 +641,7 @@
                 document.addEventListener('keydown', (e) => this.handleInput(e));
 
                 // Touch/mouse input
-                this.crtCanvas.addEventListener('click', (e) => this.handleTap(e));
+                if (!this.isIOS) this.crtCanvas.addEventListener('click', (e) => this.handleTap(e));
                 this.crtCanvas.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     const touch = e.touches[0];
@@ -839,7 +841,7 @@
             createSuccessEffect(x, y) {
                 // Create a small visual effect for successful key press
                 // exclude iOS devices due to performance issues
-                if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return;
+                if (this.isIOS) return;
                 this.explosions.push(new Explosion(x, y, '+1'));
             }
             
@@ -1063,31 +1065,31 @@
                 this.highlight = this.strainSize - 1;
             }
             
-update(deltaTime, windowHeight, globalAnimTime) {
-    this.currentAnim += deltaTime * this.animMultiplier;
-    if (this.currentAnim > this.strainSize) {
-        this.currentAnim = 0;
-    }
-    
-    for (let i = 0; i < this.digits.length; i++) {
-        const digit = this.digits[i];
-        digit.y += this.speed * deltaTime;
-        digit.x += (Math.random() - 0.5) * 0.05;
-        
-        if (this.destroyTimer > 0) {
-            digit.y += (Math.random() - 0.5) * 10;
-            digit.x += (Math.random() - 0.5) * 10;
-            this.destroyTimer -= 0.0025;
-            if (this.destroyTimer < 0) {
-                this.destroyTimer = 0;
+            update(deltaTime, windowHeight, globalAnimTime) {
+                this.currentAnim += deltaTime * this.animMultiplier;
+                if (this.currentAnim > this.strainSize) {
+                    this.currentAnim = 0;
+                }
+                
+                for (let i = 0; i < this.digits.length; i++) {
+                    const digit = this.digits[i];
+                    digit.y += this.speed * deltaTime;
+                    digit.x += (Math.random() - 0.5) * 0.05;
+                    
+                    if (this.destroyTimer > 0) {
+                        digit.y += (Math.random() - 0.5) * 10;
+                        digit.x += (Math.random() - 0.5) * 10;
+                        this.destroyTimer -= 0.0025;
+                        if (this.destroyTimer < 0) {
+                            this.destroyTimer = 0;
+                        }
+                    }
+                    
+                    if (digit.y > windowHeight && !this.gameover) {
+                        this.gameover = true;
+                    }
+                }
             }
-        }
-        
-        if (digit.y > windowHeight && !this.gameover) {
-            this.gameover = true;
-        }
-    }
-}
             
             render(ctx) {
                 for (let i = 0; i < this.digits.length; i++) {
@@ -1112,7 +1114,7 @@ update(deltaTime, windowHeight, globalAnimTime) {
             reset() {
                 this.x = this.rng.randFloat(0, this.windowWidth - this.digitSize);
                 this.y = -this.digitSize;
-                this.alpha = this.rng.randFloat(1, 10);
+                this.i = this.rng.randFloat(1, 10);
             }
             
             update(deltaTime) {
@@ -1123,7 +1125,7 @@ update(deltaTime, windowHeight, globalAnimTime) {
             }
             
             render(ctx) {
-                ctx.fillStyle = `rgba(${this.alpha}, ${this.alpha}, ${this.alpha})`;
+                ctx.fillStyle = `rgb(${this.i}, ${this.i}, ${this.i})`;
                 ctx.fillText('•', this.x, this.y);
             }
         }
@@ -1133,7 +1135,7 @@ update(deltaTime, windowHeight, globalAnimTime) {
                 this.x = x;
                 this.y = y;
                 this.char = char;
-                this.alpha = 0.75;
+                this.i = 200;
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() - 0.5) * 2;
             }
@@ -1141,12 +1143,12 @@ update(deltaTime, windowHeight, globalAnimTime) {
             update(deltaTime) {
                 this.x += this.vx;
                 this.y += this.vy;
-                this.alpha -= 0.025;
+                this.i -= 10;
             }
             
             render(ctx) {
-                if (this.alpha > 0) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                if (this.i > 0) {
+                    ctx.fillStyle = `rgb(${this.i}, ${this.i}, ${this.i})`;
                     ctx.fillText(this.char, this.x, this.y);
                 }
             }
