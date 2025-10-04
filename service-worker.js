@@ -2,6 +2,7 @@ const CACHE_NAME = "0ra1n-cache-v1";
 const ASSETS = [
   "./",
   "./index.html",
+  "./pixi.min.js",
   "./manifest.json",
   "./MonomaniacOne-Regular.ttf",
   "./fx-rain.ogg",

@@ -1,7 +1,7 @@
 {
   "name": "0RA1N",
   "short_name": "0RA1N",
-  "description": "Binary Rain Game",
+  "description": "Game of Binary Rain",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
