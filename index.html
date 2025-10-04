@@ -1,13 +1,20 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
     <title>0RA1N</title>
-    <link rel="manifest" href="./manifest.json">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Monomaniac+One&display=swap');
+        
+        @font-face {
+            font-family: 'MonomaniacOne';
+            src: url('./MonomaniacOne-Regular.ttf') format('truetype');
+            font-display: swap;
+        }
         
         body {
             margin: 0;
@@ -17,205 +24,25 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            font-family: 'Monomaniac One', 'Courier New', monospace;
+            font-family: 'MonomaniacOne', 'Monomaniac One', 'Courier New', monospace;
             overflow: hidden;
         }
         
-        #gameContainer {
-            position: relative;
+        #gameCanvas {
+            display: none;
+        }
+        
+        #crtCanvas {
+            display: block;
+            background: #000;
         }
     </style>
 </head>
 <body>
-    <div id="gameContainer"></div>
+    <canvas id="gameCanvas"></canvas>
+    <canvas id="crtCanvas"></canvas>
 
     <script>
-        // CRT Filter for PixiJS
-        class CRTFilter extends PIXI.Filter {
-            constructor() {
-                const fragmentShader = `
-                    precision highp float;
-                    
-                    varying vec2 vTextureCoord;
-                    uniform sampler2D uSampler;
-                    uniform float uTime;
-                    uniform vec2 uResolution;
-                    
-                    const float M_PI = 3.14159265;
-                    const float CURVE_STRENGTH = 0.15;
-                    const float CURVE_DISTANCE = 5.0;
-                    
-                    float rnd(vec2 c) {
-                        return fract(sin(dot(c.xy, vec2(12.9898,78.233))) * 43758.5453);
-                    }
-                    
-                    vec3 hsl2rgb(vec3 c) {
-                        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-                        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-                        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-                    }
-                    
-                    vec3 rgbDistortion(vec2 uv, float offset) {
-                        vec3 color;
-                        color.r = texture2D(uSampler, uv + vec2(offset, 0.0)).r;
-                        color.g = texture2D(uSampler, uv).g;
-                        color.b = texture2D(uSampler, uv - vec2(offset, 0.0)).b;
-                        return color;
-                    }
-                    
-                    float calculateLightFactor(vec2 uv, float iTime) {
-                        float intensity = 1.5;
-                        float ambient_light = 0.25;
-                        
-                        float lightX = 0.5 + sin(iTime * 1.75) * 0.35;
-                        vec2 lightPos = vec2(lightX, 0.2);
-                        
-                        vec2 lightVector = uv - lightPos;
-                        float scaledDistance = length(lightVector);
-                        
-                        float lightFalloff = pow(clamp(1.0 - (scaledDistance / 1.5), 0.0, 1.0), 0.85);
-                        
-                        return mix(ambient_light, 1.0 + intensity, lightFalloff);
-                    }
-                    
-                    void main() {
-                        float iTime = uTime;
-                        vec2 iResolution = uResolution;
-                        
-                        vec2 uv = vTextureCoord;
-                        
-                        // FX Rumble
-                        float hash = fract(sin(floor(iTime / 7.0) * 43758.5453));
-                        float interval = 7.0 + hash * 6.0;
-                        float rumbleDuration = 1.0;
-                        float rumbleDim = 0.0;
-                        
-                        if (rumbleDuration > 0.0) {
-                            float rumbleStrength = 0.0;
-                            
-                            float currentIntervalStart = floor(iTime / interval) * interval;
-                            float phase = iTime - currentIntervalStart;
-                            
-                            if (phase < rumbleDuration) {
-                                rumbleStrength = sin(phase * 3.14159 / rumbleDuration);
-                                rumbleDim = 0.05 * rumbleStrength;
-                            }
-                        }
-                        
-                        vec2 center = vec2(0.5, 0.5);
-                        float distanceFromCenter = length(uv - center);
-                        
-                        // Screen curvature with reduced strength
-                        uv += (uv - center) * pow(distanceFromCenter, CURVE_DISTANCE) * CURVE_STRENGTH;
-                        
-                        // Horizontal sync wave
-                        float time = iTime * 5.0;
-                        float size = 0.001;
-                        
-                        float cyclePeriod = 2.0;
-                        float randomOffset = fract(sin(floor(iTime / cyclePeriod) * 12345.67) * 43758.5453);
-                        float actualCyclePeriod = cyclePeriod + randomOffset;
-                        float cyclePosition = fract(iTime / actualCyclePeriod);
-                        
-                        float waveDuration = 0.15;
-                        float waveStrength = 0.0;
-                        
-                        if (cyclePosition < waveDuration) {
-                            float normalizedTime = cyclePosition / waveDuration;
-                            waveStrength = sin(normalizedTime * 3.14159) * size;
-                        }
-                        
-                        float hWave = sin(uv.y * 10.0 + time) * waveStrength;
-                        uv.x += hWave;
-                        
-                        // Check if out of bounds
-                        vec3 color;
-                        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-                            color = vec3(0.0);
-                        } else {
-                            // RGB distortion
-                            float rgbOffset = 0.001;
-                            color = rgbDistortion(uv, rgbOffset);
-                        }
-                        
-                        // FX Aperture Grille
-                        float grilleLvl = 0.95;
-                        float grilleDensity = 800.0;
-                        if (grilleLvl > 0.0) {
-                            float grillePattern = sin(vTextureCoord.x * grilleDensity * 3.14159);
-                            grillePattern = grilleLvl + (1.0 - grilleLvl) * grillePattern;
-                            color *= (0.5 + 0.5 * grillePattern);
-                        }
-                        
-                        // FX Scanlines
-                        float scanlineLvl = 0.8;
-                        float scanlines = 1.0;
-                        if (scanlineLvl > 0.05) {
-                            float scanlinePattern = sin(vTextureCoord.y * iResolution.y * 3.14159 / scanlines);
-                            color *= (scanlineLvl + (1.0 - scanlineLvl) * scanlinePattern);
-                        }
-                        
-                        // FX Screen tint
-                        float screenTint = 0.2;
-                        float screenHue = 0.0;
-                        float screenSat = 1.0;
-                        if (screenTint > 0.0) {
-                            float l = dot(color, vec3(0.2126, 0.7152, 0.0722));
-                            vec3 screen = hsl2rgb(vec3(screenHue, screenSat, l));
-                            color = mix(color, screen, screenTint);
-                        }
-                        
-                        // FX Glass tint
-                        float glassTint = 0.2;
-                        float glassHue = 0.6;
-                        float glassSat = 0.3;
-                        if (glassTint > 0.0) {
-                            float t = 0.5 + 0.5 * vTextureCoord.y;
-                            vec3 tintColor = hsl2rgb(vec3(glassHue, glassSat, t));
-                            color += tintColor * glassTint;
-                        }
-                        
-                        // FX Flicker
-                        float flicker = 0.05;
-                        if (flicker > 0.0) {
-                            float f = 1.0 + 0.25 * sin(iTime * 60.0) * flicker;
-                            color *= f;
-                        }
-                        
-                        // FX Vignette
-                        vec2 vignetteUV = vTextureCoord;
-                        vignetteUV *= (1.0 - vignetteUV.yx);
-                        color *= pow(vignetteUV.x * vignetteUV.y * 20.0, 0.25);
-                        
-                        // FX Light Source
-                        float lightSpeed = 1.0;
-                        if (lightSpeed > 0.0) {
-                            float lightFactor = calculateLightFactor(vTextureCoord, iTime * lightSpeed);
-                            vec3 lightColor = vec3(1.0, 0.98, 0.95);
-                            color *= lightColor * lightFactor;
-                        }
-                        
-                        color -= rumbleDim;
-                        
-                        gl_FragColor = vec4(color, 1.0);
-                    }
-                `;
-                
-                super(null, fragmentShader, {
-                    uTime: 0.0,
-                    uResolution: [1080, 2400]
-                });
-            }
-            
-            apply(filterManager, input, output, clearMode) {
-                this.uniforms.uTime = performance.now() / 1000;
-                this.uniforms.uResolution[0] = input.filterFrame.width;
-                this.uniforms.uResolution[1] = input.filterFrame.height;
-                
-                filterManager.applyFilter(this, input, output, clearMode);
-            }
-        }
-
         // Seeded random number generator
         class SeededRandom {
             constructor(seed) {
@@ -239,6 +66,12 @@
         class BinaryRainGame {
             constructor() {
                 this.audioStarted = false;
+                this.gameCanvas = document.getElementById('gameCanvas');
+                this.gameCtx = this.gameCanvas.getContext('2d');
+                this.crtCanvas = document.getElementById('crtCanvas');
+                
+                // Initialize CRT shader
+                this.initCRTShader();
                 
                 // Audio setup
                 this.sounds = {
@@ -262,14 +95,27 @@
                 this.TOTAL_STRAINS = 20;
                 this.TOTAL_RAINDROPS = 120;
                 this.BASE_DIGIT_SIZE = 80;
+                this.DIGIT_ALPHA = 0.35;
 
-                // Scale factor
+                // Colors
+                this.colorTitle = 'gray';
+                this.colorStart = 'cyan';
+                this.colorSeed = 'cyan';
+                this.colorScore = 'yellow';
+
+                // Text sizes
+                this.sizeTitle = 200;
+                this.sizeMenu = 80;
+                this.sizeSeed = 80;
+                this.sizeScore = 80;
+                
+                // Scale factor for responsive sizing
                 this.scale = 1;
                 this.width = this.BASE_WIDTH;
                 this.height = this.BASE_HEIGHT;
                 this.digitSize = this.BASE_DIGIT_SIZE;
                 
-                // Game state
+                // Game state - start with start screen
                 this.gameMode = "start";
                 this.score = 0;
                 this.strains = [];
@@ -281,121 +127,406 @@
                 
                 this.init();
             }
-
-            init() {
-                // Calculate initial size but don't update UI yet
-                const windowHeight = window.innerHeight - 20;
-                const windowWidth = window.innerWidth - 20;
+            
+            initCRTShader() {
+                const gl = this.crtCanvas.getContext('webgl') || this.crtCanvas.getContext('experimental-webgl');
+                if (!gl) {
+                    console.error('WebGL not supported');
+                    return;
+                }
                 
-                const scaleByHeight = windowHeight / this.BASE_HEIGHT;
-                const scaleByWidth = windowWidth / this.BASE_WIDTH;
-                this.scale = Math.min(scaleByHeight, scaleByWidth);
+                this.gl = gl;
                 
-                this.width = this.BASE_WIDTH * this.scale;
-                this.height = this.BASE_HEIGHT * this.scale;
-                this.digitSize = this.BASE_DIGIT_SIZE * this.scale;
-                
-                // Create PixiJS application
-                this.app = new PIXI.Application({
-                    width: this.width,
-                    height: this.height,
-                    backgroundColor: 0x000000,
-                    antialias: true
-                });
-                
-                document.getElementById('gameContainer').appendChild(this.app.view);
-                
-                // Create containers for different layers
-                this.raindropContainer = new PIXI.Container();
-                this.strainContainer = new PIXI.Container();
-                this.explosionContainer = new PIXI.Container();
-                this.uiContainer = new PIXI.Container();
-                
-                this.app.stage.addChild(this.raindropContainer);
-                this.app.stage.addChild(this.strainContainer);
-                this.app.stage.addChild(this.explosionContainer);
-                this.app.stage.addChild(this.uiContainer);
-                
-                // Add CRT filter to the entire stage
-                this.crtFilter = new CRTFilter();
-                this.crtFilter.padding = 50;
-                this.app.stage.filters = [this.crtFilter];
-                
-                // Wait for font to load before creating text objects
-                document.fonts.ready.then(() => {
-                    this.createUIElements();
-                    this.setupInputHandlers();
-                    this.updateURL();
-                    this.updateUIPositions();
-                    this.app.ticker.add((delta) => this.gameLoop(delta));
+                // Vertex shader
+                const vertexShaderSource = `
+                    attribute vec4 a_position;
+                    attribute vec2 a_texCoord;
+                    varying vec2 v_texCoord;
                     
-                    console.log(`Game seed: ${this.seed}`);
-                    console.log(`Share this game: ${window.location.origin}${window.location.pathname}?seed=${this.seed}`);
-                });
+                    void main() {
+                        gl_Position = a_position;
+                        v_texCoord = a_texCoord;
+                    }
+                `;
+                
+                // Fragment shader with CRT effect
+                const fragmentShaderSource = `
+                    precision highp float;
+                    
+                    varying vec2 v_texCoord;
+                    uniform float u_time;
+                    uniform vec2 u_resolution;
+                    uniform sampler2D u_texture;
+                    
+                    const float M_PI = 3.14159265;
+                    
+                    float rnd(vec2 c) {
+                        return fract(sin(dot(c.xy, vec2(12.9898,78.233))) * 43758.5453);
+                    }
+                    
+                    vec3 hsl2rgb(vec3 c) {
+                        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+                        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+                        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+                    }
+                    
+                    vec3 rgbDistortion(vec2 uv, float offset) {
+                        vec3 color;
+                        color.r = texture2D(u_texture, uv + vec2(offset, 0.0)).r;
+                        color.g = texture2D(u_texture, uv).g;
+                        color.b = texture2D(u_texture, uv - vec2(offset, 0.0)).b;
+                        return color;
+                    }
+                    
+                    float calculateLightFactor(vec2 uv, float iTime) {
+                        float intensity = 1.5;
+                        float ambient_light = 0.25;
+                        
+                        float lightX = 0.5 + sin(iTime * 1.75) * 0.35;
+                        vec2 lightPos = vec2(lightX, 0.2);
+                        
+                        vec2 lightVector = uv - lightPos;
+                        float scaledDistance = length(lightVector);
+                        
+                        float lightFalloff = pow(clamp(1.0 - (scaledDistance / 1.5), 0.0, 1.0), 0.85);
+                        
+                        return mix(ambient_light, 1.0 + intensity, lightFalloff);
+                    }
+                    
+                    vec3 applyCRTEffect(vec2 uv, float bSize, vec3 bColor, bool isFrame, float fSize) {
+                        float iTime = u_time;
+                        vec2 iResolution = u_resolution;
+                        
+                        // Default CRT parameters
+                        float grilleLvl = 0.95;
+                        float grilleDensity = 800.0;
+                        float scanlineLvl = 0.8;
+                        float scanlines = 1.0;
+                        float rgbOffset = 0.001;
+                        float noiseLevel = 0.0;
+                        float flicker = 0.05;
+                        float glassTint = 0.2;
+                        float glassHue = 0.6;
+                        float glassSat = 0.3;
+                        float screenTint = 0.2;
+                        float screenHue = 0.0;
+                        float screenSat = 1.0;
+                        float vignetteStart = 0.5;
+                        float vignetteLvl = 20.0;
+                        float hSync = 0.01;
+                        float lightSpeed = 1.0;
+                        
+                        // Configure parameters for horizontal sync wave
+                        float time = iTime * 5.0;
+                        float size = mix(0.0, hSync, 0.1);
+                        
+                        float cyclePeriod = 2.0;
+                        float randomOffset = fract(sin(floor(iTime / cyclePeriod) * 12345.67) * 43758.5453);
+                        float actualCyclePeriod = cyclePeriod + randomOffset;
+                        float cyclePosition = fract(iTime / actualCyclePeriod);
+                        
+                        float waveDuration = 0.15;
+                        float waveStrength = 0.0;
+                        
+                        if (cyclePosition < waveDuration) {
+                            float normalizedTime = cyclePosition / waveDuration;
+                            waveStrength = sin(normalizedTime * 3.14159) * size;
+                        }
+                        
+                        float hWave = sin(uv.y * 10.0 + time) * waveStrength;
+                        vec3 color;
+                        
+                        bool isBorder = 
+                            (uv.x < bSize || uv.x > 1.0 - bSize || 
+                             uv.y < bSize || uv.y > 1.0 - bSize);
+                        
+                        vec2 screenUV = (uv - vec2(bSize, bSize)) / (1.0 - 2.0 * bSize);
+                        if (isBorder && bSize > 0.0) {
+                            if (screenUV.x < 0.0 || screenUV.x > 1.0 || screenUV.y < 0.0 || screenUV.y > 1.0) {
+                                color = bColor;
+                            } else {
+                                color = rgbDistortion(screenUV, rgbOffset);
+                            }
+                        } else {
+                            screenUV.x += hWave;
+                            if (screenUV.x < 0.0 || screenUV.x > 1.0 || screenUV.y < 0.0 || screenUV.y > 1.0) {
+                                color = bColor;
+                            } else {
+                                color = rgbDistortion(screenUV, rgbOffset);
+                            }
+                        }
+                        
+                        // FX Aperture Grille
+                        if (grilleLvl > 0.0) {
+                            float grillePattern = sin(uv.x * grilleDensity * 3.14159);
+                            grillePattern = grilleLvl + (1.0 - grilleLvl) * grillePattern;
+                            color *= (0.5 + 0.5 * grillePattern);
+                        }
+                        
+                        // FX Scanlines
+                        if (scanlineLvl > 0.05) {
+                            float scanlinePattern = sin(uv.y * iResolution.y * 3.14159 / scanlines);
+                            color *= (scanlineLvl + (1.0 - scanlineLvl) * scanlinePattern);
+                        }
+                        
+                        // FX Noise
+                        if (noiseLevel > 0.0) {
+                            float timeFactor = iTime * 1.0;
+                            float noise = rnd(uv + timeFactor);
+                            color += noise * noiseLevel * 0.5;
+                        }
+                        
+                        // FX Screen tint
+                        if (screenTint > 0.0) {
+                            float l = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                            vec3 screen = hsl2rgb(vec3(screenHue, screenSat, l));
+                            color = mix(color, screen, screenTint);
+                        }
+                        
+                        // FX Glass tint
+                        if (glassTint > 0.0) {
+                            float t = 0.5 + 0.5 * uv.y;
+                            vec3 tintColor = hsl2rgb(vec3(glassHue, glassSat, t));
+                            color += tintColor * glassTint;
+                        }
+                        
+                        // FX Flicker
+                        if (flicker > 0.0) {
+                            float f = 1.0 + 0.25 * sin(iTime * 60.0) * flicker;
+                            color *= f;
+                        }
+                        
+                        return color;
+                    }
+                    
+                    void main() {
+                        float iTime = u_time;
+                        vec2 iResolution = u_resolution;
+                        
+                        vec2 uv = gl_FragCoord.xy / iResolution.xy;
+                        
+                        // FX Rumble
+                        float hash = fract(sin(floor(iTime / 7.0) * 43758.5453));
+                        float interval = 7.0 + hash * 6.0;
+                        float rumbleDuration = 1.0;
+                        float rumbleDim = 0.0;
+                        
+                        if (rumbleDuration > 0.0) {
+                            float rumbleStrength = 0.0;
+                            
+                            float currentIntervalStart = floor(iTime / interval) * interval;
+                            float phase = iTime - currentIntervalStart;
+                            
+                            if (phase < rumbleDuration) {
+                                rumbleStrength = sin(phase * 3.14159 / rumbleDuration);
+                                rumbleDim = 0.05 * rumbleStrength;
+                            }
+                            
+                            float maxOffset = 3.0;
+                            vec2 rumbleOffset = vec2(
+                                sin(iTime * 20.0 + 0.3) * cos(iTime * 13.0),
+                                cos(iTime * 17.0 - 0.7) * sin(iTime * 11.0)
+                            ) * rumbleStrength * maxOffset / iResolution;
+                            //uv += rumbleOffset;
+                        }
+                        
+                        vec2 center = vec2(0.5, 0.5);
+                        float alpha = 1.0;
+                        float distanceFromCenter = length(uv - center);
+                        vec2 pxSize = 1.0 / iResolution.xy;
+                        
+                        float curveStrength = 0.2;
+                        float curveDistance = 5.0;
+                        
+                        uv += (uv - center) * pow(distanceFromCenter, curveDistance) * curveStrength;
+                        
+                        vec3 bColor = hsl2rgb(vec3(0.0, 0.0, 0.0));
+                        
+                        float frameSize = 0.0;
+                        float borderSize = 0.0;
+                        float frame = frameSize * pxSize.x;
+                        float border = borderSize * pxSize.x;
+                        vec2 suv = (uv - vec2(frame, frame)) / (1.0 - 2.0 * frame);
+                        
+                        vec3 color;
+                        
+                        bool isFrame = (uv.x < frame || uv.x > (1.0 - frame) ||
+                                        uv.y < frame || uv.y > (1.0 - frame));
+                        
+                        if (isFrame) {
+                            float frameLight = 0.0;
+                            if (frameLight == 0.0) alpha = 0.0;
+                            
+                            float frameVal = 100.0;
+                            float nX = frameVal / iResolution.x;
+                            float nY = frameVal / iResolution.y;
+                            float intensity = 0.0;
+                            
+                            float distX = min(uv.x, 1.0-uv.x);
+                            float distY = min(uv.y, 1.0-uv.y);
+                            float minDist = min(distX, distY);
+                            
+                            intensity = mix(frameLight, 0.0, minDist / max(nX, nY) * 4.0);
+                            
+                            float frameHue = 0.025;
+                            float frameSat = 0.1;
+                            color = hsl2rgb(vec3(frameHue, frameSat, intensity));
+                            
+                            float frameGrain = 0.15;
+                            color *= 1.0 - frameGrain * rnd(suv);
+                            
+                            float lightFactor = calculateLightFactor(uv, iTime);
+                            vec3 lightColor = vec3(1.0, 0.98, 0.95);
+                            color *= lightColor * lightFactor;
+                        } else {
+                            color = applyCRTEffect(suv, border, bColor, isFrame, frameSize);
+                        }
+                        
+                        // FX Vignette
+                        if (!isFrame) {
+                            uv *= (1.0 - uv.yx);
+                            color *= pow(uv.x * uv.y * 20.0, 0.25);
+                        }
+                        
+                        // FX Light Source
+                        float lightSpeed = 1.0;
+                        if (lightSpeed > 0.0 && !isFrame) {
+                            float lightFactor = calculateLightFactor(gl_FragCoord.xy / iResolution.xy, iTime * lightSpeed);
+                            vec3 lightColor = vec3(1.0, 0.98, 0.95);
+                            color *= lightColor * lightFactor;
+                        }
+                        
+                        color -= rumbleDim;
+                        
+                        gl_FragColor = vec4(color, alpha);
+                    }
+                `;
+                
+                // Create shaders
+                const vertexShader = this.createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+                const fragmentShader = this.createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+                
+                if (!vertexShader || !fragmentShader) {
+                    console.error('Failed to create shaders');
+                    return;
+                }
+                
+                // Create program
+                this.shaderProgram = this.createProgram(gl, vertexShader, fragmentShader);
+                if (!this.shaderProgram) {
+                    console.error('Failed to create shader program');
+                    return;
+                }
+                
+                // Set up geometry
+                const positions = [
+                    -1, -1,  0, 0,  // Bottom left
+                    1, -1,  1, 0,  // Bottom right
+                    -1,  1,  0, 1,  // Top left
+                    -1,  1,  0, 1,  // Top left
+                    1, -1,  1, 0,  // Bottom right
+                    1,  1,  1, 1,  // Top right
+                ];
+                
+                const positionBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+                
+                const positionLocation = gl.getAttribLocation(this.shaderProgram, 'a_position');
+                const texCoordLocation = gl.getAttribLocation(this.shaderProgram, 'a_texCoord');
+                
+                gl.enableVertexAttribArray(positionLocation);
+                gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0);
+                
+                gl.enableVertexAttribArray(texCoordLocation);
+                gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 16, 8);
+                
+                // Get uniform locations
+                this.timeLocation = gl.getUniformLocation(this.shaderProgram, 'u_time');
+                this.resolutionLocation = gl.getUniformLocation(this.shaderProgram, 'u_resolution');
+                this.textureLocation = gl.getUniformLocation(this.shaderProgram, 'u_texture');
+                
+                // Create texture for game canvas
+                this.gameTexture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, this.gameTexture);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                
+                this.startTime = Date.now();
             }
             
-            createUIElements() {
-                // Create UI text objects
-                this.scoreText = new PIXI.Text('0', {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: 80,
-                    fill: 0xffff00,
-                    align: 'right'
-                });
-                this.scoreText.anchor.set(1, 0);
-                this.uiContainer.addChild(this.scoreText);
+            createShader(gl, type, source) {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
                 
-                this.titleText = new PIXI.Text('0RA1N', {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: 200,
-                    fill: 0x808080,
-                    align: 'center'
-                });
-                this.titleText.anchor.set(0.5, 0.5);
-                this.uiContainer.addChild(this.titleText);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    console.error('Shader compilation error:', gl.getShaderInfoLog(shader));
+                    gl.deleteShader(shader);
+                    return null;
+                }
                 
-                this.startText = new PIXI.Text('[S]tart', {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: 80,
-                    fill: 0x00ffff,
-                    align: 'center'
-                });
-                this.startText.anchor.set(0.5, 0.5);
-                this.uiContainer.addChild(this.startText);
-                
-                this.seedText = new PIXI.Text(`Seed: ${this.seed}`, {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: 80,
-                    fill: 0x00ffff,
-                    align: 'center'
-                });
-                this.seedText.anchor.set(0.5, 0.5);
-                this.uiContainer.addChild(this.seedText);
-                
-                this.restartText = new PIXI.Text('[R]estart with', {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: 80,
-                    fill: 0x00ffff,
-                    align: 'center'
-                });
-                this.restartText.anchor.set(0.5, 0.5);
-                this.uiContainer.addChild(this.restartText);
+                return shader;
             }
             
-            setupInputHandlers() {
-                // Input handlers
-                document.addEventListener('keydown', (e) => this.handleInput(e));
-                this.app.view.addEventListener('click', (e) => this.handleTap(e));
-                this.app.view.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    const touch = e.touches[0];
-                    this.handleTap(touch);
-                }, { passive: false });
+            createProgram(gl, vertexShader, fragmentShader) {
+                const program = gl.createProgram();
+                gl.attachShader(program, vertexShader);
+                gl.attachShader(program, fragmentShader);
+                gl.linkProgram(program);
                 
-                window.addEventListener('resize', () => this.resizeCanvas());
+                if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                    console.error('Program linking error:', gl.getProgramInfoLog(program));
+                    gl.deleteProgram(program);
+                    return null;
+                }
+                
+                return program;
+            }
+            
+            renderCRT() {
+                if (!this.gl || !this.shaderProgram) return;
+
+                const gl = this.gl;
+
+                // Keep CRT canvas size managed by resizeCanvas() so aspect ratio matches BASE_WIDTH/BASE_HEIGHT
+                if (this.crtCanvas.width !== this.width || this.crtCanvas.height !== this.height) {
+                    this.crtCanvas.width = this.width;
+                    this.crtCanvas.height = this.height;
+                }
+
+                // Always set viewport to CRT canvas size
+                gl.viewport(0, 0, this.crtCanvas.width, this.crtCanvas.height);
+
+                // Update game texture from hidden game canvas
+                gl.bindTexture(gl.TEXTURE_2D, this.gameTexture);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.gameCanvas);
+
+                //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.gameCanvas);
+
+                gl.useProgram(this.shaderProgram);
+
+                // Update uniforms
+                const time = (Date.now() - this.startTime) / 1000;
+                gl.uniform1f(this.timeLocation, time);
+
+                // Use CRT canvas resolution for shader effects
+                gl.uniform2f(this.resolutionLocation, this.crtCanvas.width, this.crtCanvas.height);
+
+                // Bind game texture
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, this.gameTexture);
+                gl.uniform1i(this.textureLocation, 0);
+
+                // Draw full screen quad (gameCanvas will be stretched to CRT canvas)
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
             }
 
             loadSounds() {
+                // Try to load local sound files
                 const loadSound = (filename) => {
                     return new Promise((resolve) => {
                         const audio = new Audio();
@@ -406,12 +537,17 @@
                     });
                 };
                 
+                // Load sounds asynchronously
                 loadSound('fx-rain.ogg').then(audio => {
+                    // Keep the original audio for fallback
                     this.sounds.rain = audio;
+                    
+                    // Create Web Audio context for seamless looping
                     if (!this.audioContext) {
                         this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     }
                     
+                    // Load the audio buffer
                     fetch('./fx-rain.ogg')
                         .then(response => response.arrayBuffer())
                         .then(data => this.audioContext.decodeAudioData(data))
@@ -429,7 +565,7 @@
                     this.sounds.music = audio;
                     if (audio) {
                         audio.loop = true;
-                        audio.volume = 0.5;
+                        audio.volume = 0.5; // Adjust volume as needed
                     }
                 });
 
@@ -449,6 +585,7 @@
             startAudio() {
                 if (!this.audioStarted) {
                     if (this.rainBuffer && this.audioContext) {
+                        // Use Web Audio API for seamless looping
                         this.rainSource = this.audioContext.createBufferSource();
                         this.rainSource.buffer = this.rainBuffer;
                         this.rainSource.loop = true;
@@ -461,9 +598,13 @@
                         
                         this.rainSource.start(0);
                         this.audioStarted = true;
+                        console.log('Rain sound started with Web Audio API');
                     } else if (this.sounds.rain) {
-                        this.sounds.rain.play().catch(console.error);
-                        this.audioStarted = true;
+                        // Fallback to regular audio
+                        this.sounds.rain.play().then(() => {
+                            console.log('Rain sound started with fallback method');
+                            this.audioStarted = true;
+                        }).catch(console.error);
                     }
                 }
             }
@@ -477,7 +618,7 @@
             stopGameMusic() {
                 if (this.sounds.music && !this.sounds.music.paused) {
                     this.sounds.music.pause();
-                    this.sounds.music.currentTime = 0;
+                    this.sounds.music.currentTime = 0; // Reset to beginning
                 }
             }
             
@@ -485,12 +626,39 @@
                 const sound = this.sounds[soundName];
                 if (sound) {
                     sound.currentTime = 0;
-                    sound.play().catch(() => {});
+                    sound.play().catch(() => {}); // Ignore play errors
                 }
+            }
+            
+            init() {
+                this.resizeCanvas();
+
+                // Keyboard input
+                document.addEventListener('keydown', (e) => this.handleInput(e));
+
+                // Touch/mouse input
+                this.crtCanvas.addEventListener('click', (e) => this.handleTap(e));
+                this.crtCanvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    this.handleTap(touch);
+                }, { passive: false });
+                // Prevent scrolling on iOS especially
+                this.crtCanvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                }, { passive: false });
+
+                window.addEventListener('resize', () => this.resizeCanvas());
+
+                this.updateURL();
+                this.gameLoop();
+
+                console.log(`Game seed: ${this.seed}`);
+                console.log(`Share this game: ${window.location.origin}${window.location.pathname}?seed=${this.seed}`);
             }
 
             handleTap(pos) {
-                const rect = this.app.view.getBoundingClientRect();
+                const rect = this.crtCanvas.getBoundingClientRect();
                 const x = pos.clientX - rect.left;
                 const y = pos.clientY - rect.top;
 
@@ -554,16 +722,14 @@
                 this.score = 0;
                 this.strains = [];
                 this.explosions = [];
-                this.strainContainer.removeChildren();
-                this.explosionContainer.removeChildren();
-                this.seedText.text = `Seed: ${this.seed}`;
                 console.log(`New game seed: ${this.seed}`);
             }
             
             resizeCanvas() {
-                const windowHeight = window.innerHeight - 20;
+                const windowHeight = window.innerHeight - 20; // Small margin
                 const windowWidth = window.innerWidth - 20;
                 
+                // Calculate scale to fit height while maintaining aspect ratio
                 const scaleByHeight = windowHeight / this.BASE_HEIGHT;
                 const scaleByWidth = windowWidth / this.BASE_WIDTH;
                 this.scale = Math.min(scaleByHeight, scaleByWidth);
@@ -572,39 +738,25 @@
                 this.height = this.BASE_HEIGHT * this.scale;
                 this.digitSize = this.BASE_DIGIT_SIZE * this.scale;
                 
-                if (this.app) {
-                    this.app.renderer.resize(this.width, this.height);
-                    this.updateUIPositions();
-                }
-            }
-            
-            updateUIPositions() {
-                if (!this.scoreText) return; // Guard against early calls
+                // Resize game canvas
+                this.gameCanvas.width = this.width;
+                this.gameCanvas.height = this.height;
                 
-                this.scoreText.x = this.width - 20;
-                this.scoreText.y = this.height - 40;
-                this.scoreText.style.fontSize = 80 * this.scale;
+                // Resize CRT canvas
+                this.crtCanvas.width = this.width;
+                this.crtCanvas.height = this.height;
                 
-                this.titleText.x = this.width / 2;
-                this.titleText.y = this.height / 2 - 150 * this.scale;
-                this.titleText.style.fontSize = 200 * this.scale;
-                
-                this.startText.x = this.width / 2;
-                this.startText.y = this.height / 2;
-                this.startText.style.fontSize = 80 * this.scale;
-                
-                this.restartText.x = this.width / 2;
-                this.restartText.y = this.height / 2;
-                this.restartText.style.fontSize = 80 * this.scale;
-                
-                this.seedText.x = this.width / 2;
-                this.seedText.y = this.height / 2 + 80 * this.scale;
-                this.seedText.style.fontSize = 80 * this.scale;
+                // Update canvas drawing properties with font fallback
+                this.gameCtx.font = `${this.digitSize}px "MonomaniacOne", "Monomaniac One", "Courier New", monospace`;
+                this.gameCtx.textAlign = 'left';
+                this.gameCtx.textBaseline = 'top';
             }
             
             findValidX() {
+                // Create array to track occupied pixels
                 const pixels = new Array(Math.floor(this.width)).fill(true);
                 
+                // Mark occupied positions
                 for (const strain of this.strains) {
                     const maxX = Math.min(strain.x + this.digitSize, this.width);
                     for (let i = strain.x; i < maxX; i++) {
@@ -614,6 +766,7 @@
                     }
                 }
                 
+                // Find valid positions
                 const possibles = [];
                 for (let x = 0; x < pixels.length; x++) {
                     if (this.isValidPosition(pixels, x)) {
@@ -656,6 +809,7 @@
                 
                 let key = event.key;
                 
+                // Handle numpad keys
                 if (key === 'Numpad0') key = '0';
                 if (key === 'Numpad1') key = '1';
                 
@@ -666,6 +820,7 @@
                         const currentDigit = strain.digits[strain.highlight];
                         if (key === currentDigit.value) {
                             strain.highlight--;
+                            // Play success sound effect
                             this.playSound('splish');
                             this.createSuccessEffect(strain.x, strain.getHighlightY());
                             
@@ -680,28 +835,32 @@
             }
             
             createSuccessEffect(x, y) {
-                this.explosions.push(new Explosion(x, y, '+1', this.explosionContainer, this.digitSize));
+                // Create a small visual effect for successful key press
+                // exclude iOS devices due to performance issues
+                if (/iPad|iPhone|iPod/.test(navigator.userAgent)) return;
+                this.explosions.push(new Explosion(x, y, '+1'));
             }
             
             scoreUp(strain) {
                 this.score += strain.strainSize;
-                strain.destroyTimer = 0.35;
+                strain.destroyTimer = this.DIGIT_ALPHA;
                 
+                // Play explosion sound effect
                 this.playSound('explosion');
                 
+                // Create explosion effects
                 for (const digit of strain.digits) {
-                    this.explosions.push(new Explosion(digit.x, digit.y, '•', this.explosionContainer, this.digitSize));
+                    this.explosions.push(new Explosion(digit.x, digit.y, '•'));
                 }
             }
             
             restart() {
+                // Reset RNG with same seed
                 this.rng = new SeededRandom(this.seed);
                 this.gameMode = "play";
                 this.score = 0;
                 this.strains = [];
                 this.explosions = [];
-                this.strainContainer.removeChildren();
-                this.explosionContainer.removeChildren();
                 this.startGameMusic();
             }
             
@@ -709,13 +868,14 @@
                 this.gameMode = "gameover";
                 this.stopGameMusic();
                 this.playSound('gameover');
-                
+                // Start destruction animation for all strains
                 for (const strain of this.strains) {
-                    if (strain.destroyTimer <= 0) {
-                        strain.destroyTimer = 0.35;
+                    if (strain.destroyTimer <= 0) {  // Only if not already destroying
+                        strain.destroyTimer = this.DIGIT_ALPHA;  // Same timer value used elsewhere
                         
+                        // Optional: Create explosion effects without scoring
                         for (const digit of strain.digits) {
-                            this.explosions.push(new Explosion(digit.x, digit.y, '•', this.explosionContainer, this.digitSize));
+                            this.explosions.push(new Explosion(digit.x, digit.y, '•'));
                         }
                     }
                 }
@@ -724,42 +884,42 @@
             update(deltaTime) {
                 this.animTime += deltaTime;
                 
-                // Update explosions
+                // Update explosions (always)
                 for (let i = this.explosions.length - 1; i >= 0; i--) {
                     this.explosions[i].update(deltaTime);
                     if (this.explosions[i].alpha <= 0) {
-                        this.explosions[i].destroy();
                         this.explosions.splice(i, 1);
                     }
                 }
                 
-                // Update strains
+                // Update strains (always, for destruction animations)
                 for (let i = this.strains.length - 1; i >= 0; i--) {
                     const strain = this.strains[i];
                     strain.update(deltaTime, this.height, this.animTime);
                     
                     if (strain.destroyTimer === 0) {
-                        strain.destroy();
                         this.strains.splice(i, 1);
                     } else if (strain.gameover && this.gameMode === "play") {
+                        // Only trigger gameover if we're actually playing
                         this.gameOver();
                         return;
                     }
                 }
                 
-                // Create raindrops
+                // Create raindrops (always)
                 while (this.raindrops.length < this.TOTAL_RAINDROPS) {
-                    this.raindrops.push(new Raindrop(this.width, this.height, this.digitSize, this.rng, this.raindropContainer));
+                    this.raindrops.push(new Raindrop(this.width, this.height, this.digitSize, this.rng));
                 }
                 
-                // Update raindrops
+                // Update raindrops (always)
                 for (const raindrop of this.raindrops) {
                     raindrop.update(deltaTime);
                 }
                 
+                // Early return if not in play mode - everything below is play-only logic
                 if (this.gameMode !== "play") return;
                 
-                // Create new strains
+                // Create new strains (play mode only)
                 while (this.strains.length < this.TOTAL_STRAINS) {
                     let x = this.rng.randInt(0, this.width - this.digitSize);
                     if (this.strains.length > 1) {
@@ -767,40 +927,89 @@
                     }
                     if (x > -1) {
                         this.strains.push(new Strain(x, this.STRAIN_MIN_SIZE, this.STRAIN_MAX_SIZE, 
-                        this.MIN_BASE_SPEED, this.MAX_BASE_SPEED, this.digitSize, this.scale, this.rng, this.strainContainer));
+                        this.MIN_BASE_SPEED, this.MAX_BASE_SPEED, this.digitSize, this.scale, this.rng));
                     } else {
                         break;
                     }
                 }
             }
             
-            render() {
-                // Update UI
-                this.scoreText.text = this.score.toString();
+            drawText(text, x, y, color, size = null, align = 'left') {
+                const oldFont = this.gameCtx.font;
+                const oldAlign = this.gameCtx.textAlign;
                 
-                // Show/hide UI elements based on game mode
-                this.titleText.visible = (this.gameMode === "start" || this.gameMode === "gameover");
-                this.startText.visible = (this.gameMode === "start" || this.gameMode === "gameover");
-                this.seedText.visible = (this.gameMode === "start" || this.gameMode === "gameover");
-                this.restartText.visible = (this.gameMode === "gameover");
-                
-                if (this.gameMode === "gameover") {
-                    this.seedText.y = this.height / 2 + 40 * this.scale;
-                } else {
-                    this.seedText.y = this.height / 2 + 80 * this.scale;
+                if (size) {
+                    this.gameCtx.font = `${size * this.scale}px "MonomaniacOne", "Monomaniac One", "Courier New", monospace`;
                 }
+                this.gameCtx.textAlign = align;
+                this.gameCtx.fillStyle = color;
+                this.gameCtx.fillText(text, x, y);
+                
+                this.gameCtx.font = oldFont;
+                this.gameCtx.textAlign = oldAlign;
             }
             
-            gameLoop(delta) {
-                const deltaTime = delta / 60; // Convert to seconds
+            render() {
+                // Clear game canvas
+                this.gameCtx.fillStyle = 'black';
+                this.gameCtx.fillRect(0, 0, this.width, this.height);
+                
+                // Render raindrops
+                //this.gameCtx.fillStyle = 'rgba(255, 255, 0, 0.2)';
+                for (const raindrop of this.raindrops) {
+                    raindrop.render(this.gameCtx);
+                }
+                
+                // Render strains
+                for (const strain of this.strains) {
+                    strain.render(this.gameCtx);
+                }
+                
+                // Render explosions
+                for (const explosion of this.explosions) {
+                    explosion.render(this.gameCtx);
+                }
+                
+                // Render UI elements on canvas
+                
+                // Score
+                this.drawText(this.score.toString(), this.width - 20, this.height - this.sizeScore/2, this.colorScore, this.sizeScore, 'right');
+                
+                // Start screen
+                if (this.gameMode === "start" || this.gameMode === "gameover") {
+                    // 0RA1N title
+                    this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, this.colorTitle, this.sizeTitle, 'center');
+                    
+                    // Start instruction
+                    let y = this.height / 2;
+                    this.drawText('[S]tart', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
+                    y += this.sizeMenu;
+                    if (this.gameMode === "gameover"){
+                        this.drawText('[R]estart with', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
+                        y += this.sizeMenu / 2;
+                    }
+
+                    // Seed info
+                    this.drawText(`Seed: ${this.seed}`, this.width / 2, y, this.colorSeed, this.sizeSeed, 'center');
+                }
+                
+                // Render CRT effect
+                this.renderCRT();
+            }
+            
+            gameLoop(currentTime = 0) {
+                const deltaTime = (currentTime - this.lastTime) / 1000;
+                this.lastTime = currentTime;
                 
                 this.update(deltaTime);
                 this.render();
+                
+                requestAnimationFrame((time) => this.gameLoop(time));
             }
         }
         
         class Strain {
-            constructor(x, minSize, maxSize, minSpeed, maxSpeed, digitSize, scale, rng, container) {
+            constructor(x, minSize, maxSize, minSpeed, maxSpeed, digitSize, scale, rng) {
                 this.x = x;
                 this.speed = (rng.randFloat(minSpeed, maxSpeed)) * scale;
                 this.strainSize = rng.randInt(minSize, maxSize);
@@ -810,30 +1019,14 @@
                 this.highlight = this.strainSize - 1;
                 this.currentAnim = this.strainSize;
                 this.animMultiplier = rng.randFloat(4, 12);
-                this.digitSize = digitSize;
-                this.container = container;
                 
-                // Create digits with PixiJS Text
+                // Create digits
                 for (let i = 0; i < this.strainSize; i++) {
-                    const value = rng.next() < 0.5 ? '0' : '1';
-                    const text = new PIXI.Text(value, {
-                        fontFamily: 'Monomaniac One, Courier New',
-                        fontSize: digitSize,
-                        fill: 0x00ffff,
-                        align: 'left'
-                    });
-                    text.x = x;
-                    text.y = (i * digitSize) - this.strainSize * digitSize;
-                    text.alpha = 0.3;
-                    
                     this.digits.push({
-                        value: value,
+                        value: rng.next() < 0.5 ? '0' : '1',
                         x: x,
-                        y: text.y,
-                        sprite: text
+                        y: (i * digitSize) - this.strainSize * digitSize
                     });
-                    
-                    container.addChild(text);
                 }
             }
             
@@ -845,154 +1038,126 @@
                 return this.digits[this.highlight] ? this.digits[this.highlight].y : this.getY();
             }
             
+            getDigitColor(i, alpha = 1) {
+                const baseAlpha = 0.3 * alpha;
+                let a = baseAlpha;
+                
+                if (i > this.highlight) {
+                    return `rgba(255, 255, 255, ${0.75 * alpha})`;
+                }
+                
+                if (i === Math.floor(this.currentAnim)) {
+                    a = baseAlpha + 0.2;
+                }
+                
+                if (i === this.strainSize - 1) {
+                    a += 0.2;
+                }
+                
+                return `rgba(0, 255, 255, ${a})`;
+            }
+            
             reset() {
                 this.highlight = this.strainSize - 1;
             }
             
-            update(deltaTime, windowHeight, globalAnimTime) {
-                this.currentAnim += deltaTime * this.animMultiplier;
-                if (this.currentAnim > this.strainSize) {
-                    this.currentAnim = 0;
-                }
-                
+update(deltaTime, windowHeight, globalAnimTime) {
+    this.currentAnim += deltaTime * this.animMultiplier;
+    if (this.currentAnim > this.strainSize) {
+        this.currentAnim = 0;
+    }
+    
+    for (let i = 0; i < this.digits.length; i++) {
+        const digit = this.digits[i];
+        digit.y += this.speed * deltaTime;
+        digit.x += (Math.random() - 0.5) * 0.05;
+        
+        if (this.destroyTimer > 0) {
+            digit.y += (Math.random() - 0.5) * 10;
+            digit.x += (Math.random() - 0.5) * 10;
+            this.destroyTimer -= 0.0025;
+            if (this.destroyTimer < 0) {
+                this.destroyTimer = 0;
+            }
+        }
+        
+        if (digit.y > windowHeight && !this.gameover) {
+            this.gameover = true;
+        }
+    }
+}
+            
+            render(ctx) {
                 for (let i = 0; i < this.digits.length; i++) {
                     const digit = this.digits[i];
-                    digit.y += this.speed * deltaTime;
-                    digit.x += (Math.random() - 0.5) * 0.05;
-                    
-                    // Update sprite position
-                    digit.sprite.x = digit.x;
-                    digit.sprite.y = digit.y;
-                    
-                    if (this.destroyTimer > 0) {
-                        digit.y += (Math.random() - 0.5) * 10;
-                        digit.x += (Math.random() - 0.5) * 10;
-                        digit.sprite.x = digit.x;
-                        digit.sprite.y = digit.y;
-                        this.destroyTimer -= 0.0025;
-                        if (this.destroyTimer < 0) {
-                            this.destroyTimer = 0;
-                        }
-                    }
-                    
-                    // Update color and alpha
-                    const baseAlpha = 0.3 * (this.destroyTimer > 0 ? this.destroyTimer : 1);
-                    let alpha = baseAlpha;
-                    
-                    if (i > this.highlight) {
-                        digit.sprite.style.fill = 0xffffff;
-                        digit.sprite.alpha = 0.75 * (this.destroyTimer > 0 ? this.destroyTimer : 1);
-                    } else {
-                        digit.sprite.style.fill = 0x00ffff;
-                        if (i === Math.floor(this.currentAnim)) {
-                            alpha = baseAlpha + 0.2;
-                        }
-                        if (i === this.strainSize - 1) {
-                            alpha += 0.2;
-                        }
-                        digit.sprite.alpha = alpha;
-                    }
-                    
-                    if (digit.y > windowHeight && !this.gameover) {
-                        this.gameover = true;
-                    }
-                }
-            }
-            
-            destroy() {
-                for (const digit of this.digits) {
-                    this.container.removeChild(digit.sprite);
-                    digit.sprite.destroy();
+                    const alpha = this.destroyTimer > 0 ? this.destroyTimer : 1;
+                    ctx.fillStyle = this.getDigitColor(i, alpha);
+                    ctx.fillText(digit.value, digit.x, digit.y);
                 }
             }
         }
         
         class Raindrop {
-            constructor(windowWidth, windowHeight, digitSize, rng, container) {
+            constructor(windowWidth, windowHeight, digitSize, rng) {
                 this.windowWidth = windowWidth;
                 this.windowHeight = windowHeight;
                 this.digitSize = digitSize;
                 this.speed = rng.randFloat(300, 700);
                 this.rng = rng;
-                this.container = container;
-                
-                this.sprite = new PIXI.Text('•', {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: digitSize,
-                    fill: 0x0a0a0a,
-                    align: 'left'
-                });
-                
-                container.addChild(this.sprite);
                 this.reset();
             }
             
             reset() {
                 this.x = this.rng.randFloat(0, this.windowWidth - this.digitSize);
                 this.y = -this.digitSize;
-                this.sprite.x = this.x;
-                this.sprite.y = this.y;
-                const brightness = this.rng.randInt(1, 10);
-                this.sprite.style.fill = (brightness << 16) | (brightness << 8) | brightness;
+                this.alpha = this.rng.randFloat(1, 10);
             }
             
             update(deltaTime) {
                 this.y += this.speed * deltaTime;
                 if (this.y > this.windowHeight) {
                     this.reset();
-                } else {
-                    this.sprite.y = this.y;
                 }
+            }
+            
+            render(ctx) {
+                ctx.fillStyle = `rgba(${this.alpha}, ${this.alpha}, ${this.alpha})`;
+                ctx.fillText('•', this.x, this.y);
             }
         }
         
         class Explosion {
-            constructor(x, y, char, container, fontSize) {
+            constructor(x, y, char = '•') {
                 this.x = x;
                 this.y = y;
+                this.char = char;
                 this.alpha = 0.75;
                 this.vx = (Math.random() - 0.5) * 2;
                 this.vy = (Math.random() - 0.5) * 2;
-                this.container = container;
-                
-                this.sprite = new PIXI.Text(char, {
-                    fontFamily: 'Monomaniac One, Courier New',
-                    fontSize: fontSize,
-                    fill: 0xffffff,
-                    align: 'left'
-                });
-                this.sprite.x = x;
-                this.sprite.y = y;
-                this.sprite.alpha = this.alpha;
-                
-                container.addChild(this.sprite);
             }
             
             update(deltaTime) {
                 this.x += this.vx;
                 this.y += this.vy;
                 this.alpha -= 0.025;
-                
-                this.sprite.x = this.x;
-                this.sprite.y = this.y;
-                this.sprite.alpha = Math.max(0, this.alpha);
             }
             
-            destroy() {
-                this.container.removeChild(this.sprite);
-                this.sprite.destroy();
+            render(ctx) {
+                if (this.alpha > 0) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                    ctx.fillText(this.char, this.x, this.y);
+                }
             }
         }
         
         // Start the game
         const game = new BinaryRainGame();
 
-        // Register service worker for PWA
-        if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./worker.js')
-            .then(reg => console.log('Service Worker registered:', reg.scope))
-            .catch(err => console.error('Service Worker registration failed:', err));
+        if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker.register("service-worker.js")
+            .then((reg) => console.log("Service worker registered:", reg.scope))
+            .catch((err) => console.error("Service worker failed:", err));
         });
         }
     </script>
