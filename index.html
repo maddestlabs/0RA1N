@@ -1151,6 +1151,7 @@
             
             render(ctx) {
                 if (this.i > 0) {
+                    if (this.isIOS) return;
                     ctx.fillStyle = `rgb(${this.i}, ${this.i}, ${this.i})`;
                     ctx.fillText(this.char, this.x, this.y);
                 }
