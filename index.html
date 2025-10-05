@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -28,15 +28,28 @@
             min-height: 100vh;
             font-family: 'MonomaniacOne', 'Monomaniac One', 'Courier New', monospace;
             overflow: hidden;
+            overscroll-behavior: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
         
         #gameCanvas {
             display: none;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
         }
         
         #crtCanvas {
             display: block;
             background: #000;
+            transform: translate3d(0, 0, 0);
+            -webkit-transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
         }
     </style>
 </head>
@@ -649,6 +662,9 @@
                 }, { passive: false });
                 // Prevent scrolling on iOS especially
                 this.crtCanvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                }, { passive: false });
+                this.crtCanvas.addEventListener('touchend', (e) => {
                     e.preventDefault();
                 }, { passive: false });
 
