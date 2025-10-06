@@ -3,7 +3,7 @@ const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./MonomaniacOne-Regular.ttf",
+  "./AnomalyMono-Regular.otf",
   "./fx-rain.ogg",
   "./music.ogg",
   "./fx-splish.ogg",

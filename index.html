@@ -10,11 +10,9 @@
     <meta name="theme-color" content="#000000">
     <title>0RA1N</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Monomaniac+One&display=swap');
-        
         @font-face {
-            font-family: 'MonomaniacOne';
-            src: url('./MonomaniacOne-Regular.ttf') format('truetype');
+            font-family: 'AnomalyMono';
+            src: url('./AnomalyMono-Regular.otf') format('opentype');
             font-display: swap;
         }
         
@@ -26,7 +24,7 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            font-family: 'MonomaniacOne', 'Monomaniac One', 'Courier New', monospace;
+            font-family: 'AnomalyMono', 'Courier New', monospace;
             overflow: hidden;
             overscroll-behavior: none;
             -webkit-user-select: none;
@@ -769,7 +767,7 @@
                 this.crtCanvas.height = this.height;
                 
                 // Update canvas drawing properties with font fallback
-                this.gameCtx.font = `${this.digitSize}px "MonomaniacOne", "Monomaniac One", "Courier New", monospace`;
+                this.gameCtx.font = `${this.digitSize}px "AnomalyMono", "Courier New", monospace`;
                 this.gameCtx.textAlign = 'left';
                 this.gameCtx.textBaseline = 'top';
             }
@@ -961,7 +959,8 @@
                 const oldAlign = this.gameCtx.textAlign;
                 
                 if (size) {
-                    this.gameCtx.font = `${size * this.scale}px "MonomaniacOne", "Monomaniac One", "Courier New", monospace`;
+                    this.gameCtx.font = `${size * this.scale}px "AnomalyMono", "Courier New", monospace`;
+
                 }
                 this.gameCtx.textAlign = align;
                 this.gameCtx.fillStyle = color;
