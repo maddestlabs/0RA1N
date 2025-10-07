@@ -684,6 +684,23 @@
 
                 this.startAudio();
 
+                const seedFontSize = this.sizeSeed * 0.6 * this.scale;
+                const seedText = `S:${this.seed}`;
+                //this.gameCtx.font = `${seedFontSize}px "AnomalyMono", "Courier New", monospace`;
+                const seedWidth = this.gameCtx.measureText(seedText).width;
+                const seedHeight = seedFontSize;
+                const seedX = this.width - 20 - seedWidth;
+                const seedY = 20;
+                
+                const tapPadding = 20;
+                if (this.gameMode !== "play") {
+                    if (x >= seedX - tapPadding && x <= this.width - 20 + tapPadding &&
+                        y >= seedY - tapPadding && y <= seedY + seedHeight + tapPadding) {
+                        this.promptSeedChange();
+                        return;
+                    }
+                }
+
                 if (this.gameMode === "start") {
                     this.startNewGame();
                     return;
@@ -705,6 +722,32 @@
                     this.handleVirtualKey("1");
                 } else {
                     this.handleVirtualKey("0");
+                }
+            }
+
+            promptSeedChange() {
+                const currentSeed = this.seed;
+                const newSeedStr = prompt(`Current seed: ${currentSeed}\n\nEnter new seed (number):`, currentSeed);
+                
+                if (newSeedStr !== null) {
+                    const newSeed = parseInt(newSeedStr);
+                    
+                    if (!isNaN(newSeed) && newSeed >= 0 && newSeed < 1000000) {
+                        this.seed = newSeed;
+                        this.rng = new SeededRandom(this.seed);
+                        this.updateURL();
+                        
+                        if (this.gameMode === "play") {
+                            this.restart();
+                        } else {
+                            this.strains = [];
+                            this.explosions = [];
+                        }
+                        
+                        console.log(`Seed changed to: ${this.seed}`);
+                    } else {
+                        alert('Invalid seed. Please enter a number between 0 and 999999.');
+                    }
                 }
             }
 
@@ -870,7 +913,7 @@
                 
                 // Create explosion effects
                 for (const digit of strain.digits) {
-                    this.explosions.push(new Explosion(digit.x, digit.y, '•'));
+                    this.explosions.push(new Explosion(digit.x, digit.y, '.'));
                 }
             }
             
@@ -895,7 +938,7 @@
                         
                         // Optional: Create explosion effects without scoring
                         for (const digit of strain.digits) {
-                            this.explosions.push(new Explosion(digit.x, digit.y, '•'));
+                            this.explosions.push(new Explosion(digit.x, digit.y, '.'));
                         }
                     }
                 }
@@ -970,38 +1013,30 @@
                 this.gameCtx.textAlign = oldAlign;
             }
             
+            
             render() {
-                // Clear game canvas
                 this.gameCtx.fillStyle = 'black';
                 this.gameCtx.fillRect(0, 0, this.width, this.height);
                 
-                // Render raindrops
-                //this.gameCtx.fillStyle = 'rgba(255, 255, 0, 0.2)';
                 for (const raindrop of this.raindrops) {
                     raindrop.render(this.gameCtx);
                 }
                 
-                // Render strains
                 for (const strain of this.strains) {
                     strain.render(this.gameCtx);
                 }
                 
-                // Render explosions
                 for (const explosion of this.explosions) {
                     explosion.render(this.gameCtx);
                 }
                 
-                // Render UI elements on canvas
+                this.drawText(this.score.toString(), this.width - 20, this.height - this.sizeScore/1.5, this.colorScore, this.sizeScore, 'right');
                 
-                // Score
-                this.drawText(this.score.toString(), this.width - 20, this.height - this.sizeScore/2, this.colorScore, this.sizeScore, 'right');
+                this.drawText(`S:${this.seed}`, this.width - 20, 20, this.colorSeed, this.sizeSeed * 0.6, 'right');
                 
-                // Start screen
                 if (this.gameMode === "start" || this.gameMode === "gameover") {
-                    // 0RA1N title
                     this.drawText('0RA1N', this.width / 2, this.height / 2 - 150, this.colorTitle, this.sizeTitle, 'center');
                     
-                    // Start instruction
                     let y = this.height / 2;
                     this.drawText('[S]tart', this.width / 2, y, this.colorStart, this.sizeMenu, 'center');
                     y += this.sizeMenu;
@@ -1010,11 +1045,9 @@
                         y += this.sizeMenu / 2;
                     }
 
-                    // Seed info
-                    this.drawText(`Seed: ${this.seed}`, this.width / 2, y, this.colorSeed, this.sizeSeed, 'center');
+                    this.drawText('Seed: ' + this.seed, this.width / 2, y, this.colorSeed, this.sizeSeed * 0.5, 'center');
                 }
                 
-                // Render CRT effect
                 this.renderCRT();
             }
             
