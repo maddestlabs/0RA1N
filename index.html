@@ -17,7 +17,7 @@
             margin: 0 auto;
             }
         }
-        
+
         @font-face {
             font-family: 'AnomalyMono';
             src: url('./AnomalyMono-Regular.otf') format('opentype');
@@ -1218,6 +1218,22 @@
         
         // Start the game
         const game = new BinaryRainGame();
+
+        if ('launchQueue' in window) {
+        window.launchQueue.setConsumer(async (launchParams) => {
+            const aspectRatio = 1080 / 2400;
+            const targetHeight = Math.min(screen.availHeight * 0.9, 2400);
+            const targetWidth = targetHeight * aspectRatio;
+            
+            if (window.resizeTo && window.moveTo) {
+            window.resizeTo(targetWidth, targetHeight);
+            window.moveTo(
+                (screen.availWidth - targetWidth) / 2,
+                (screen.availHeight - targetHeight) / 2
+            );
+            }
+        });
+        }
 
         if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
