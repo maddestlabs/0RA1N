@@ -1,0 +1,17 @@
+{
+  "name": "0rain",
+  "version": "0.1.0",
+  "description": "Binary rain typing game",
+  "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "npm run copy-dist && tauri build",
+    "copy-dist": "node copy-dist.js"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  }
+}
