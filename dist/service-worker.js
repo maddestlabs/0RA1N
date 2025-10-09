@@ -5,7 +5,7 @@ const ASSETS = [
   "./manifest.json",
   "./AnomalyMono-Regular.otf",
   "./fx-rain.ogg",
-  "./music.ogg",
+  "./01-dreams-of-her.ogg",
   "./fx-splish.ogg",
   "./fx-explosion.ogg",
   "./fx-huh.ogg",
