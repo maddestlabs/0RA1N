@@ -45,22 +45,28 @@ jobs:
         run: npm run copy-dist
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: '0RA1N v__VERSION__'
-          releaseBody: 'See the assets to download and install this version.'
-          releaseDraft: true
-          prerelease: false
-          tauriScript: npm run tauri
-          args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+        run: npm run tauri:build
 
-      - name: Upload artifacts
+      - name: Upload executable (Windows)
+        if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-build
-          path: |
-            src-tauri/target/release/bundle/
-          retention-days: 7
+          name: 0RA1N-windows
+          path: src-tauri/target/release/0RA1N.exe
+          retention-days: 30
+
+      - name: Upload executable (macOS)
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 0RA1N-macos
+          path: src-tauri/target/release/0RA1N
+          retention-days: 30
+
+      - name: Upload executable (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/upload-artifact@v4
+        with:
+          name: 0RA1N-linux
+          path: src-tauri/target/release/0RA1N
+          retention-days: 30

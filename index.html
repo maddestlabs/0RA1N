@@ -11,7 +11,7 @@
     <meta name="theme-color" content="#000000">
     <title>0RA1N</title>
     <style>
-        @media (min-width: 768px) {
+        @media (min-width: 360) {
             body {
             max-width: 100vh * (1080 / 2400);
             margin: 0 auto;
@@ -95,8 +95,12 @@
                 this.gameCanvas = document.getElementById('gameCanvas');
                 this.gameCtx = this.gameCanvas.getContext('2d');
                 this.crtCanvas = document.getElementById('crtCanvas');
-
                 this.isIOS = (/iPad|iPhone|iPod/.test(navigator.userAgent));
+                this.isTauri = (
+                    typeof window.__TAURI__ !== 'undefined' ||
+                    window.location.protocol === 'tauri:' ||
+                    window.location.hostname === 'tauri.localhost'
+                );
                 
                 // Initialize CRT shader
                 this.initCRTShader();
@@ -116,6 +120,10 @@
                 // Game constants
                 this.BASE_WIDTH = 1080;
                 this.BASE_HEIGHT = 2400;
+                if (this.isTauri) {
+                    this.BASE_WIDTH = 360;
+                    this.BASE_HEIGHT = 800;
+                }
                 this.STRAIN_MIN_SIZE = 3;
                 this.STRAIN_MAX_SIZE = 6;
                 this.MIN_BASE_SPEED = 100;
@@ -659,6 +667,7 @@
             }
             
             init() {
+                if (this.isTauri) this.startAudio();
                 this.resizeCanvas();
 
                 // Keyboard input
@@ -860,9 +869,33 @@
                 }
                 return true;
             }
+
+            toggleFullscreen() {
+                if (document.fullscreenElement) {
+                    // Exit fullscreen
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                } else {
+                    // Enter fullscreen
+                    const elem = document.documentElement;
+                    if (elem.requestFullscreen) {
+                        elem.requestFullscreen();
+                    } else if (elem.webkitRequestFullscreen) { // Safari
+                        elem.webkitRequestFullscreen();
+                    } else if (elem.msRequestFullscreen) { // IE11
+                        elem.msRequestFullscreen();
+                    }
+                }
+            }
             
             handleInput(event) {
                 this.startAudio();
+                if (event.key === 'F11') {
+                    event.preventDefault();
+                    this.toggleFullscreen();
+                    return;
+                }
                 if (this.gameMode === "start") {
                     if (event.key.toLowerCase() === 's') {
                         this.startNewGame();

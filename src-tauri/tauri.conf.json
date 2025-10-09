@@ -12,14 +12,15 @@
     "windows": [
       {
         "fullscreen": false,
-        "resizable": true,
+        "resizable": false,
+        "maximizable": false,
         "title": "0RA1N",
-        "width": 540,
-        "height": 1200,
+        "width": 350,
+        "height": 800,
         "minWidth": 270,
         "minHeight": 600,
-        "maxWidth": 810,
-        "maxHeight": 1800,
+        "maxWidth": 540,
+        "maxHeight": 1200,
         "center": true,
         "decorations": true,
         "theme": "Dark"
@@ -30,14 +31,6 @@
     }
   },
   "bundle": {
-    "active": true,
-    "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "active": false
   }
 }
