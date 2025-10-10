@@ -11,13 +11,7 @@ The Matrix-inspired binary rain game.
 
 ## Play Now
 
-**Web Version:** [Play on GitHub Pages](https://maddestlabs.github.io/0RA1N/)
-
-**Desktop Downloads:**
-- [Windows (64-bit)](https://github.com/yourusername/0rain/releases/latest)
-- [macOS (Apple Silicon)](https://github.com/yourusername/0rain/releases/latest)
-- [macOS (Intel)](https://github.com/yourusername/0rain/releases/latest)
-- [Linux (AppImage)](https://github.com/yourusername/0rain/releases/latest)
+**Web Version: ▶** [Play on GitHub Pages](https://maddestlabs.github.io/0RA1N/)
 
 ## How to Play
 
@@ -41,8 +35,6 @@ Binary digits fall from the top of the screen in "strains" - sequences you must 
 - **CRT Shader Effects** - Authentic retro monitor aesthetic with scanlines, RGB distortion, and dynamic lighting
 - **Responsive Design** - Plays on desktop, tablet, and mobile devices
 - **Progressive Web App** - Install to home screen on mobile devices
-- **Atmospheric Audio** - Rain ambience and sound effects (with seamless looping)
-- **Score Tracking** - Earn points for each destroyed strain
 
 ## Seed System
 
