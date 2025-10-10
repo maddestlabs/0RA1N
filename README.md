@@ -1,12 +1,12 @@
 # 0RA1N
 
-A retro-inspired binary rain typing game with CRT shader effects.
+The Matrix-inspired binary rain game.
 
 <div align="center">
   
-[![0RA1N Gameplay](https://img.youtube.com/vi/9m4KIFAMTbk/maxresdefault.jpg)](https://www.youtube.com/watch?v=9m4KIFAMTbk)
+[![0RA1N Gameplay](https://img.youtube.com/vi/hrf5lATXrYI/maxresdefault.jpg)](https://www.youtube.com/watch?v=hrf5lATXrYI)
 
-*Click to watch gameplay demo*
+*Click to watch intro*
 </div>
 
 ## Play Now
@@ -37,20 +37,20 @@ Binary digits fall from the top of the screen in "strains" - sequences you must 
 
 ## Features
 
-- **Seeded Gameplay** - Share specific challenges via URL seeds
+- **Seeded Gameplay** - Share specific challenges via random seeds
 - **CRT Shader Effects** - Authentic retro monitor aesthetic with scanlines, RGB distortion, and dynamic lighting
 - **Responsive Design** - Plays on desktop, tablet, and mobile devices
 - **Progressive Web App** - Install to home screen on mobile devices
 - **Atmospheric Audio** - Rain ambience and sound effects (with seamless looping)
 - **Score Tracking** - Earn points for each destroyed strain
 
-## 🎯 Seed System
+## Seed System
 
 Each game is generated from a seed number (0-999999). Same seed = same game!
 
 **Share a challenge:**
 ```
-https://yourusername.github.io/0rain?seed=42069
+https://maddestlabs.github.io/0RA1N/?seed=42069
 ```
 
 ## Technical Details
@@ -75,47 +75,6 @@ https://yourusername.github.io/0rain?seed=42069
 1. Click the install icon in the address bar
 2. Click "Install" in the popup
 3. Launch from your apps menu or desktop
-
-## 🎨 Customization
-
-CRT shader parameters can be adjusted in the fragment shader section.
-
-## Audio Files
-
-The game requires these audio files in the root directory:
-- `01-dreams-of-her.ogg` - Background music
-- `fx-rain.ogg` - Rain ambience loop
-- `fx-splish.ogg` - Correct keystroke sound
-- `fx-explosion.ogg` - Strain destruction sound
-- `fx-huh.ogg` - Game over sound
-
-## Development
-
-**Run locally:**
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/0rain.git
-cd 0rain
-
-# Serve with any static file server
-python -m http.server 8000
-# or
-npx serve
-```
-
-Visit `http://localhost:8000` in your browser.
-
-**Build Tauri desktop apps:**
-```bash
-# Install Tauri CLI
-cargo install tauri-cli
-
-# Development
-cargo tauri dev
-
-# Build release
-cargo tauri build
-```
 
 ## Credits
 
